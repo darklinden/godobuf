@@ -853,210 +853,194 @@ class Player:
 
 	var __double_val: PBField
 	func has_double_val() -> bool:
-		if __double_val.value != null:
-			return true
-		return false
+		return data[1].state == PB_SERVICE_STATE.FILLED
 	func get_double_val() -> float:
 		return __double_val.value
 	func clear_double_val() -> void:
 		data[1].state = PB_SERVICE_STATE.UNFILLED
 		__double_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.DOUBLE]
 	func set_double_val(value : float) -> void:
+		data[1].state = PB_SERVICE_STATE.FILLED
 		__double_val.value = value
 	
 	var __float_val: PBField
 	func has_float_val() -> bool:
-		if __float_val.value != null:
-			return true
-		return false
+		return data[2].state == PB_SERVICE_STATE.FILLED
 	func get_float_val() -> float:
 		return __float_val.value
 	func clear_float_val() -> void:
 		data[2].state = PB_SERVICE_STATE.UNFILLED
 		__float_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
 	func set_float_val(value : float) -> void:
+		data[2].state = PB_SERVICE_STATE.FILLED
 		__float_val.value = value
 	
 	var __int32_val: PBField
 	func has_int32_val() -> bool:
-		if __int32_val.value != null:
-			return true
-		return false
+		return data[3].state == PB_SERVICE_STATE.FILLED
 	func get_int32_val() -> int:
 		return __int32_val.value
 	func clear_int32_val() -> void:
 		data[3].state = PB_SERVICE_STATE.UNFILLED
 		__int32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
 	func set_int32_val(value : int) -> void:
+		data[3].state = PB_SERVICE_STATE.FILLED
 		__int32_val.value = value
 	
 	var __int64_val: PBField
 	func has_int64_val() -> bool:
-		if __int64_val.value != null:
-			return true
-		return false
+		return data[4].state == PB_SERVICE_STATE.FILLED
 	func get_int64_val() -> int:
 		return __int64_val.value
 	func clear_int64_val() -> void:
 		data[4].state = PB_SERVICE_STATE.UNFILLED
 		__int64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT64]
 	func set_int64_val(value : int) -> void:
+		data[4].state = PB_SERVICE_STATE.FILLED
 		__int64_val.value = value
 	
 	var __uint32_val: PBField
 	func has_uint32_val() -> bool:
-		if __uint32_val.value != null:
-			return true
-		return false
+		return data[5].state == PB_SERVICE_STATE.FILLED
 	func get_uint32_val() -> int:
 		return __uint32_val.value
 	func clear_uint32_val() -> void:
 		data[5].state = PB_SERVICE_STATE.UNFILLED
 		__uint32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
 	func set_uint32_val(value : int) -> void:
+		data[5].state = PB_SERVICE_STATE.FILLED
 		__uint32_val.value = value
 	
 	var __uint64_val: PBField
 	func has_uint64_val() -> bool:
-		if __uint64_val.value != null:
-			return true
-		return false
+		return data[6].state == PB_SERVICE_STATE.FILLED
 	func get_uint64_val() -> int:
 		return __uint64_val.value
 	func clear_uint64_val() -> void:
 		data[6].state = PB_SERVICE_STATE.UNFILLED
 		__uint64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT64]
 	func set_uint64_val(value : int) -> void:
+		data[6].state = PB_SERVICE_STATE.FILLED
 		__uint64_val.value = value
 	
 	var __sint32_val: PBField
 	func has_sint32_val() -> bool:
-		if __sint32_val.value != null:
-			return true
-		return false
+		return data[7].state == PB_SERVICE_STATE.FILLED
 	func get_sint32_val() -> int:
 		return __sint32_val.value
 	func clear_sint32_val() -> void:
 		data[7].state = PB_SERVICE_STATE.UNFILLED
 		__sint32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.SINT32]
 	func set_sint32_val(value : int) -> void:
+		data[7].state = PB_SERVICE_STATE.FILLED
 		__sint32_val.value = value
 	
 	var __sint64_val: PBField
 	func has_sint64_val() -> bool:
-		if __sint64_val.value != null:
-			return true
-		return false
+		return data[8].state == PB_SERVICE_STATE.FILLED
 	func get_sint64_val() -> int:
 		return __sint64_val.value
 	func clear_sint64_val() -> void:
 		data[8].state = PB_SERVICE_STATE.UNFILLED
 		__sint64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.SINT64]
 	func set_sint64_val(value : int) -> void:
+		data[8].state = PB_SERVICE_STATE.FILLED
 		__sint64_val.value = value
 	
 	var __fixed32_val: PBField
 	func has_fixed32_val() -> bool:
-		if __fixed32_val.value != null:
-			return true
-		return false
+		return data[9].state == PB_SERVICE_STATE.FILLED
 	func get_fixed32_val() -> int:
 		return __fixed32_val.value
 	func clear_fixed32_val() -> void:
 		data[9].state = PB_SERVICE_STATE.UNFILLED
 		__fixed32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FIXED32]
 	func set_fixed32_val(value : int) -> void:
+		data[9].state = PB_SERVICE_STATE.FILLED
 		__fixed32_val.value = value
 	
 	var __fixed64_val: PBField
 	func has_fixed64_val() -> bool:
-		if __fixed64_val.value != null:
-			return true
-		return false
+		return data[10].state == PB_SERVICE_STATE.FILLED
 	func get_fixed64_val() -> int:
 		return __fixed64_val.value
 	func clear_fixed64_val() -> void:
 		data[10].state = PB_SERVICE_STATE.UNFILLED
 		__fixed64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FIXED64]
 	func set_fixed64_val(value : int) -> void:
+		data[10].state = PB_SERVICE_STATE.FILLED
 		__fixed64_val.value = value
 	
 	var __sfixed32_val: PBField
 	func has_sfixed32_val() -> bool:
-		if __sfixed32_val.value != null:
-			return true
-		return false
+		return data[11].state == PB_SERVICE_STATE.FILLED
 	func get_sfixed32_val() -> int:
 		return __sfixed32_val.value
 	func clear_sfixed32_val() -> void:
 		data[11].state = PB_SERVICE_STATE.UNFILLED
 		__sfixed32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.SFIXED32]
 	func set_sfixed32_val(value : int) -> void:
+		data[11].state = PB_SERVICE_STATE.FILLED
 		__sfixed32_val.value = value
 	
 	var __sfixed64_val: PBField
 	func has_sfixed64_val() -> bool:
-		if __sfixed64_val.value != null:
-			return true
-		return false
+		return data[12].state == PB_SERVICE_STATE.FILLED
 	func get_sfixed64_val() -> int:
 		return __sfixed64_val.value
 	func clear_sfixed64_val() -> void:
 		data[12].state = PB_SERVICE_STATE.UNFILLED
 		__sfixed64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.SFIXED64]
 	func set_sfixed64_val(value : int) -> void:
+		data[12].state = PB_SERVICE_STATE.FILLED
 		__sfixed64_val.value = value
 	
 	var __bool_val: PBField
 	func has_bool_val() -> bool:
-		if __bool_val.value != null:
-			return true
-		return false
+		return data[13].state == PB_SERVICE_STATE.FILLED
 	func get_bool_val() -> bool:
 		return __bool_val.value
 	func clear_bool_val() -> void:
 		data[13].state = PB_SERVICE_STATE.UNFILLED
 		__bool_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
 	func set_bool_val(value : bool) -> void:
+		data[13].state = PB_SERVICE_STATE.FILLED
 		__bool_val.value = value
 	
 	var __string_val: PBField
 	func has_string_val() -> bool:
-		if __string_val.value != null:
-			return true
-		return false
+		return data[14].state == PB_SERVICE_STATE.FILLED
 	func get_string_val() -> String:
 		return __string_val.value
 	func clear_string_val() -> void:
 		data[14].state = PB_SERVICE_STATE.UNFILLED
 		__string_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 	func set_string_val(value : String) -> void:
+		data[14].state = PB_SERVICE_STATE.FILLED
 		__string_val.value = value
 	
 	var __bytes_val: PBField
 	func has_bytes_val() -> bool:
-		if __bytes_val.value != null:
-			return true
-		return false
+		return data[15].state == PB_SERVICE_STATE.FILLED
 	func get_bytes_val() -> PackedByteArray:
 		return __bytes_val.value
 	func clear_bytes_val() -> void:
 		data[15].state = PB_SERVICE_STATE.UNFILLED
 		__bytes_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BYTES]
 	func set_bytes_val(value : PackedByteArray) -> void:
+		data[15].state = PB_SERVICE_STATE.FILLED
 		__bytes_val.value = value
 	
 	var __class: PBField
 	func has_class() -> bool:
-		if __class.value != null:
-			return true
-		return false
+		return data[16].state == PB_SERVICE_STATE.FILLED
 	func get_class_() -> int:
 		return __class.value
 	func clear_class() -> void:
 		data[16].state = PB_SERVICE_STATE.UNFILLED
 		__class.value = DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM]
 	func set_class(value : int) -> void:
+		data[16].state = PB_SERVICE_STATE.FILLED
 		__class.value = value
 	
 	var __items: PBField
@@ -1201,6 +1185,13 @@ class Player:
 		CLERIC = 4
 	}
 	
+	enum Skill {
+		NONE = 0,
+		FIRE = 1,
+		ICE = 2,
+		LIGHTNING = 3
+	}
+	
 	class Stats:
 		extends RefCounted
 		func _init() -> void:
@@ -1225,41 +1216,38 @@ class Player:
 		
 		var __strength: PBField
 		func has_strength() -> bool:
-			if __strength.value != null:
-				return true
-			return false
+			return data[1].state == PB_SERVICE_STATE.FILLED
 		func get_strength() -> int:
 			return __strength.value
 		func clear_strength() -> void:
 			data[1].state = PB_SERVICE_STATE.UNFILLED
 			__strength.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
 		func set_strength(value : int) -> void:
+			data[1].state = PB_SERVICE_STATE.FILLED
 			__strength.value = value
 		
 		var __agility: PBField
 		func has_agility() -> bool:
-			if __agility.value != null:
-				return true
-			return false
+			return data[2].state == PB_SERVICE_STATE.FILLED
 		func get_agility() -> int:
 			return __agility.value
 		func clear_agility() -> void:
 			data[2].state = PB_SERVICE_STATE.UNFILLED
 			__agility.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
 		func set_agility(value : int) -> void:
+			data[2].state = PB_SERVICE_STATE.FILLED
 			__agility.value = value
 		
 		var __intelligence: PBField
 		func has_intelligence() -> bool:
-			if __intelligence.value != null:
-				return true
-			return false
+			return data[3].state == PB_SERVICE_STATE.FILLED
 		func get_intelligence() -> int:
 			return __intelligence.value
 		func clear_intelligence() -> void:
 			data[3].state = PB_SERVICE_STATE.UNFILLED
 			__intelligence.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
 		func set_intelligence(value : int) -> void:
+			data[3].state = PB_SERVICE_STATE.FILLED
 			__intelligence.value = value
 		
 		func _to_string() -> String:
@@ -1304,28 +1292,26 @@ class Player:
 		
 		var __key: PBField
 		func has_key() -> bool:
-			if __key.value != null:
-				return true
-			return false
+			return data[1].state == PB_SERVICE_STATE.FILLED
 		func get_key() -> String:
 			return __key.value
 		func clear_key() -> void:
 			data[1].state = PB_SERVICE_STATE.UNFILLED
 			__key.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 		func set_key(value : String) -> void:
+			data[1].state = PB_SERVICE_STATE.FILLED
 			__key.value = value
 		
 		var __value: PBField
 		func has_value() -> bool:
-			if __value.value != null:
-				return true
-			return false
+			return data[2].state == PB_SERVICE_STATE.FILLED
 		func get_value() -> String:
 			return __value.value
 		func clear_value() -> void:
 			data[2].state = PB_SERVICE_STATE.UNFILLED
 			__value.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 		func set_value(value : String) -> void:
+			data[2].state = PB_SERVICE_STATE.FILLED
 			__value.value = value
 		
 		func _to_string() -> String:
@@ -1370,28 +1356,26 @@ class Player:
 		
 		var __key: PBField
 		func has_key() -> bool:
-			if __key.value != null:
-				return true
-			return false
+			return data[1].state == PB_SERVICE_STATE.FILLED
 		func get_key() -> int:
 			return __key.value
 		func clear_key() -> void:
 			data[1].state = PB_SERVICE_STATE.UNFILLED
 			__key.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
 		func set_key(value : int) -> void:
+			data[1].state = PB_SERVICE_STATE.FILLED
 			__key.value = value
 		
 		var __value: PBField
 		func has_value() -> bool:
-			if __value.value != null:
-				return true
-			return false
+			return data[2].state == PB_SERVICE_STATE.FILLED
 		func get_value() -> String:
 			return __value.value
 		func clear_value() -> void:
 			data[2].state = PB_SERVICE_STATE.UNFILLED
 			__value.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 		func set_value(value : String) -> void:
+			data[2].state = PB_SERVICE_STATE.FILLED
 			__value.value = value
 		
 		func _to_string() -> String:
@@ -1415,13 +1399,6 @@ class Player:
 				return PB_ERR.PARSE_INCOMPLETE
 			return result
 		
-	enum Skill {
-		NONE = 0,
-		FIRE = 1,
-		ICE = 2,
-		LIGHTNING = 3
-	}
-	
 	class map_type_skills:
 		extends RefCounted
 		func _init() -> void:
@@ -1443,28 +1420,26 @@ class Player:
 		
 		var __key: PBField
 		func has_key() -> bool:
-			if __key.value != null:
-				return true
-			return false
+			return data[1].state == PB_SERVICE_STATE.FILLED
 		func get_key() -> String:
 			return __key.value
 		func clear_key() -> void:
 			data[1].state = PB_SERVICE_STATE.UNFILLED
 			__key.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
 		func set_key(value : String) -> void:
+			data[1].state = PB_SERVICE_STATE.FILLED
 			__key.value = value
 		
 		var __value: PBField
 		func has_value() -> bool:
-			if __value.value != null:
-				return true
-			return false
+			return data[2].state == PB_SERVICE_STATE.FILLED
 		func get_value() -> int:
 			return __value.value
 		func clear_value() -> void:
 			data[2].state = PB_SERVICE_STATE.UNFILLED
 			__value.value = DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM]
 		func set_value(value : int) -> void:
+			data[2].state = PB_SERVICE_STATE.FILLED
 			__value.value = value
 		
 		func _to_string() -> String:
@@ -1487,7 +1462,7 @@ class Player:
 			elif limit == -1 && result > 0:
 				return PB_ERR.PARSE_INCOMPLETE
 			return result
-		
+	
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)
 		
@@ -1500,6 +1475,11 @@ class Player:
 			cur_limit = limit
 		var result: int = PBPacker.unpack_message(data, bytes, offset, cur_limit)
 		if result == cur_limit:
+			_contact_case = 0
+			if data[18].state == PB_SERVICE_STATE.FILLED:
+				_contact_case = 18
+			if data[19].state == PB_SERVICE_STATE.FILLED:
+				_contact_case = 19
 			if PBPacker.check_required(data):
 				if limit == -1:
 					return PB_ERR.NO_ERRORS
@@ -1508,5 +1488,6 @@ class Player:
 		elif limit == -1 && result > 0:
 			return PB_ERR.PARSE_INCOMPLETE
 		return result
+
 	
 ################ USER DATA END #################

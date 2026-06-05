@@ -1,4 +1,3 @@
-
 # Godot-specific ignores
 .import/
 
@@ -15,3 +14,7 @@ mono_crash.*.json
 *~
 
 addons/**/*.uid
+
+__pycache__
+example/test_data
+.claude

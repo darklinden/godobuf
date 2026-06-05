@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "godobuf"
+version = "0.7.1"
+description = "Protobuf-to-GDScript compiler"
+requires-python = ">=3.10"
+dependencies = ["protobuf>=3.20"]
+
+[project.scripts]
+protoc-gen-gd = "godobuf.plugin:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/godobuf"]
+include = ["src/godobuf/godobuf_core.gd"]
