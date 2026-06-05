@@ -6,10 +6,15 @@ import "player.proto";
 
 message Game {
   string id = 1;
+
+  // --- repeated message ---
   repeated Player players = 2;
+
+  // --- scalar ---
   int32 max_players = 3;
   bool started = 4;
 
+  // --- enum ---
   enum State {
     UNKNOWN = 0;
     LOBBY = 1;
@@ -17,4 +22,32 @@ message Game {
     FINISHED = 3;
   }
   State state = 5;
+
+  // --- optional message ---
+  optional Player leader = 6;
+
+  // --- oneof with message ---
+  oneof reward {
+    string reward_text = 7;
+    Player reward_booster = 8;
+  }
+
+  // --- map with message value ---
+  map<string, Player> team = 9;
+
+  // --- nested message ---
+  message Config {
+    bool friendly_fire = 1;
+    float time_limit = 2;
+    enum Mode {
+      NORMAL = 0;
+      RANKED = 1;
+      TOURNAMENT = 2;
+    }
+    Mode mode = 3;
+  }
+  Config config = 10;
+
+  // --- repeated nested message ---
+  repeated Config rounds = 11;
 }

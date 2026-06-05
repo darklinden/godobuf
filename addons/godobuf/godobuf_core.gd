@@ -31,7 +31,7 @@
 
 # DEBUG_TAB redefine this "  " if you need, example: const DEBUG_TAB = "\t"
 
-const PROTO_VERSION = 0
+const PROTO_VERSION: int = 0
 
 const DEBUG_TAB : String = "  "
 
@@ -69,7 +69,7 @@ enum PB_DATA_TYPE {
 	MAP = 17
 }
 
-const DEFAULT_VALUES_2 = {
+const DEFAULT_VALUES_2: Dictionary = {
 	PB_DATA_TYPE.INT32: null,
 	PB_DATA_TYPE.SINT32: null,
 	PB_DATA_TYPE.UINT32: null,
@@ -90,7 +90,7 @@ const DEFAULT_VALUES_2 = {
 	PB_DATA_TYPE.MAP: null
 }
 
-const DEFAULT_VALUES_3 = {
+const DEFAULT_VALUES_3: Dictionary = {
 	PB_DATA_TYPE.INT32: 0,
 	PB_DATA_TYPE.SINT32: 0,
 	PB_DATA_TYPE.UINT32: 0,
@@ -133,24 +133,46 @@ enum PB_SERVICE_STATE {
 	UNFILLED = 1
 }
 
+@warning_ignore_start("unsafe_cast", "unsafe_call_argument", "unsafe_method_access", "unsafe_property_access", "untyped_declaration", "inferred_declaration", "return_value_discarded")
+
 class PBField:
 	extends RefCounted
-	func _init(a_name : String, a_type : int, a_rule : int, a_tag : int, packed : bool, a_value = null):
+	func _init(a_name : String, a_type : int, a_rule : int, a_tag : int, packed : bool, a_value: Variant = null) -> void:
 		name = a_name
 		type = a_type
 		rule = a_rule
 		tag = a_tag
 		option_packed = packed
 		value = a_value
-		
+
 	var name : String
 	var type : int
 	var rule : int
 	var tag : int
 	var option_packed : bool
-	var value
+	var value: Variant
 	var is_map_field : bool = false
 	var option_default : bool = false
+
+	func clear_array() -> void:
+		(value as Array).clear()
+
+	func append_array(v: Variant) -> void:
+		(value as Array).append(v)
+
+	func as_array() -> Array:
+		return value as Array
+
+	func find_map_index(key: Variant) -> int:
+		var arr: Array = value as Array
+		for i: int in range(arr.size()):
+			if arr[i].get_key() == key:
+				return i
+		return -1
+
+	func set_map_element(index: int, element: Variant) -> void:
+		(value as Array)[index] = element
+
 
 class PBTypeTag:
 	extends RefCounted
@@ -162,7 +184,7 @@ class PBTypeTag:
 class PBServiceField:
 	extends RefCounted
 	var field : PBField
-	var func_ref = null
+	var func_ref: Callable = Callable()
 	var state : int = PB_SERVICE_STATE.UNFILLED
 
 class PBPacker:
@@ -178,26 +200,26 @@ class PBPacker:
 		else:
 			return (n >> 1)
 
-	static func pack_varint(value) -> PackedByteArray:
+	static func pack_varint(value: Variant) -> PackedByteArray:
 		var varint : PackedByteArray = PackedByteArray()
 		if typeof(value) == TYPE_BOOL:
 			if value:
 				value = 1
 			else:
 				value = 0
-		for _i in range(9):
-			var b = value & 0x7F
+		for _i: int in range(9):
+			var b: int = value & 0x7F
 			value >>= 7
 			if value:
-				varint.append(b | 0x80)
+				var _d: bool = varint.append(b | 0x80)
 			else:
-				varint.append(b)
+				var _d: bool = varint.append(b)
 				break
 		if varint.size() == 9 && (varint[8] & 0x80 != 0):
-			varint.append(0x01)
+			var _d: bool = varint.append(0x01)
 		return varint
 
-	static func pack_bytes(value, count : int, data_type : int) -> PackedByteArray:
+	static func pack_bytes(value: Variant, count : int, data_type : int) -> PackedByteArray:
 		var bytes : PackedByteArray = PackedByteArray()
 		if data_type == PB_DATA_TYPE.FLOAT:
 			var spb : StreamPeerBuffer = StreamPeerBuffer.new()
@@ -208,12 +230,12 @@ class PBPacker:
 			spb.put_double(value)
 			bytes = spb.get_data_array()
 		else:
-			for _i in range(count):
-				bytes.append(value & 0xFF)
+			for _i: int in range(count):
+				var _d: bool = bytes.append(value & 0xFF)
 				value >>= 8
 		return bytes
 
-	static func unpack_bytes(bytes : PackedByteArray, index : int, count : int, data_type : int):
+	static func unpack_bytes(bytes : PackedByteArray, index : int, count : int, data_type : int) -> Variant:
 		if data_type == PB_DATA_TYPE.FLOAT:
 			return bytes.decode_float(index)
 		elif data_type == PB_DATA_TYPE.DOUBLE:
@@ -228,11 +250,11 @@ class PBPacker:
 			return bytes.decode_s64(index)
 		else:
 			var value : int = 0
-			for i in range(count):
+			for i: int in range(count):
 				value |= bytes[index + i] << (8 * i)
 			return value
 
-	static func unpack_varint(varint_bytes) -> int:
+	static func unpack_varint(varint_bytes: PackedByteArray) -> int:
 		var value : int = 0
 		var i: int = varint_bytes.size() - 1
 		while i > -1:
@@ -288,9 +310,9 @@ class PBPacker:
 		var head : PackedByteArray = pack_type_tag(type, field.tag)
 		var data : PackedByteArray = PackedByteArray()
 		if type == PB_TYPE.VARINT:
-			var value
+			var value: Variant
 			if field.rule == PB_RULE.REPEATED:
-				for v in field.value:
+				for v in (field.value as Array):
 					data.append_array(head)
 					if field.type == PB_DATA_TYPE.SINT32 || field.type == PB_DATA_TYPE.SINT64:
 						value = convert_signed(v)
@@ -306,7 +328,7 @@ class PBPacker:
 				data = pack_varint(value)
 		elif type == PB_TYPE.FIX32:
 			if field.rule == PB_RULE.REPEATED:
-				for v in field.value:
+				for v in (field.value as Array):
 					data.append_array(head)
 					data.append_array(pack_bytes(v, 4, field.type))
 				return data
@@ -314,7 +336,7 @@ class PBPacker:
 				data.append_array(pack_bytes(field.value, 4, field.type))
 		elif type == PB_TYPE.FIX64:
 			if field.rule == PB_RULE.REPEATED:
-				for v in field.value:
+				for v in (field.value as Array):
 					data.append_array(head)
 					data.append_array(pack_bytes(v, 8, field.type))
 				return data
@@ -325,32 +347,32 @@ class PBPacker:
 				if type_copy == PB_TYPE.VARINT:
 					if field.type == PB_DATA_TYPE.SINT32 || field.type == PB_DATA_TYPE.SINT64:
 						var signed_value : int
-						for v in field.value:
+						for v in (field.value as Array):
 							signed_value = convert_signed(v)
 							data.append_array(pack_varint(signed_value))
 					else:
-						for v in field.value:
+						for v in (field.value as Array):
 							data.append_array(pack_varint(v))
 					return pack_length_delimeted(type, field.tag, data)
 				elif type_copy == PB_TYPE.FIX32:
-					for v in field.value:
+					for v in (field.value as Array):
 						data.append_array(pack_bytes(v, 4, field.type))
 					return pack_length_delimeted(type, field.tag, data)
 				elif type_copy == PB_TYPE.FIX64:
-					for v in field.value:
+					for v in (field.value as Array):
 						data.append_array(pack_bytes(v, 8, field.type))
 					return pack_length_delimeted(type, field.tag, data)
 				elif field.type == PB_DATA_TYPE.STRING:
-					for v in field.value:
-						var obj = v.to_utf8_buffer()
+					for v in (field.value as Array):
+						var obj: PackedByteArray = v.to_utf8_buffer()
 						data.append_array(pack_length_delimeted(type, field.tag, obj))
 					return data
 				elif field.type == PB_DATA_TYPE.BYTES:
-					for v in field.value:
+					for v in (field.value as Array):
 						data.append_array(pack_length_delimeted(type, field.tag, v))
 					return data
-				elif typeof(field.value[0]) == TYPE_OBJECT:
-					for v in field.value:
+				elif typeof((field.value as Array)[0]) == TYPE_OBJECT:
+					for v in (field.value as Array):
 						var obj : PackedByteArray = v.to_bytes()
 						data.append_array(pack_length_delimeted(type, field.tag, obj))
 					return data
@@ -390,15 +412,15 @@ class PBPacker:
 			return offset + 4
 		return PB_ERR.UNDEFINED_STATE
 
-	static func unpack_field(bytes : PackedByteArray, offset : int, field : PBField, type : int, message_func_ref) -> int:
+	static func unpack_field(bytes : PackedByteArray, offset : int, field : PBField, type : int, message_func_ref: Callable = Callable()) -> int:
 		if field.rule == PB_RULE.REPEATED && type != PB_TYPE.LENGTHDEL && field.option_packed:
-			var count = isolate_varint(bytes, offset)
-			if count.size() > 0:
-				offset += count.size()
-				count = unpack_varint(count)
+			var count_bytes: PackedByteArray = isolate_varint(bytes, offset)
+			if count_bytes.size() > 0:
+				offset += count_bytes.size()
+				var count: int = unpack_varint(count_bytes)
 				if type == PB_TYPE.VARINT:
-					var val
-					var counter = offset + count
+					var val: Variant
+					var counter: int = offset + count
 					while offset < counter:
 						val = isolate_varint(bytes, offset)
 						if val.size() > 0:
@@ -416,13 +438,13 @@ class PBPacker:
 							return PB_ERR.REPEATED_COUNT_MISMATCH
 					return offset
 				elif type == PB_TYPE.FIX32 || type == PB_TYPE.FIX64:
-					var type_size
+					var type_size: int
 					if type == PB_TYPE.FIX32:
 						type_size = 4
 					else:
 						type_size = 8
-					var val
-					var counter = offset + count
+					var val: Variant
+					var counter: int = offset + count
 					while offset < counter:
 						if (offset + type_size) > bytes.size():
 							return PB_ERR.REPEATED_COUNT_MISMATCH
@@ -434,7 +456,7 @@ class PBPacker:
 				return PB_ERR.REPEATED_COUNT_NOT_FOUND
 		else:
 			if type == PB_TYPE.VARINT:
-				var val = isolate_varint(bytes, offset)
+				var val: Variant = isolate_varint(bytes, offset)
 				if val.size() > 0:
 					offset += val.size()
 					val = unpack_varint(val)
@@ -453,12 +475,12 @@ class PBPacker:
 					return PB_ERR.VARINT_NOT_FOUND
 				return offset
 			elif type == PB_TYPE.FIX32 || type == PB_TYPE.FIX64:
-				var type_size
+				var type_size: int
 				if type == PB_TYPE.FIX32:
 					type_size = 4
 				else:
 					type_size = 8
-				var val
+				var val: Variant
 				if (offset + type_size) > bytes.size():
 					return PB_ERR.REPEATED_COUNT_MISMATCH
 				val = unpack_bytes(bytes, offset, type_size, field.type)
@@ -469,17 +491,17 @@ class PBPacker:
 					field.value = val
 				return offset
 			elif type == PB_TYPE.LENGTHDEL:
-				var inner_size = isolate_varint(bytes, offset)
-				if inner_size.size() > 0:
-					offset += inner_size.size()
-					inner_size = unpack_varint(inner_size)
+				var inner_bytes: PackedByteArray = isolate_varint(bytes, offset)
+				if inner_bytes.size() > 0:
+					offset += inner_bytes.size()
+					var inner_size: int = unpack_varint(inner_bytes)
 					if inner_size >= 0:
 						if inner_size + offset > bytes.size():
 							return PB_ERR.LENGTHDEL_SIZE_MISMATCH
-						if message_func_ref != null:
-							var message = message_func_ref.call()
+						if message_func_ref.is_valid():
+							var message: RefCounted = message_func_ref.call()
 							if inner_size > 0:
-								var sub_offset = message.from_bytes(bytes, offset, inner_size + offset)
+								var sub_offset: int = message.from_bytes(bytes, offset, inner_size + offset)
 								if sub_offset > 0:
 									if sub_offset - offset >= inner_size:
 										offset = sub_offset
@@ -509,13 +531,13 @@ class PBPacker:
 					return PB_ERR.LENGTHDEL_SIZE_NOT_FOUND
 		return PB_ERR.UNDEFINED_STATE
 
-	static func unpack_message(data, bytes : PackedByteArray, offset : int, limit : int) -> int:
+	static func unpack_message(data: Dictionary, bytes : PackedByteArray, offset : int, limit : int) -> int:
 		while true:
 			var tt : PBTypeTag = unpack_type_tag(bytes, offset)
 			if tt.ok:
 				offset += tt.offset
 				if data.has(tt.tag):
-					var service : PBServiceField = data[tt.tag]
+					var service: PBServiceField = data[tt.tag]
 					var type : int = pb_type_from_data_type(service.field.type)
 					if type == tt.type || (tt.type == PB_TYPE.LENGTHDEL && service.field.rule == PB_RULE.REPEATED && service.field.option_packed):
 						var res : int = unpack_field(bytes, offset, service.field, type, service.func_ref)
@@ -541,13 +563,13 @@ class PBPacker:
 					elif res < 0:
 						return res
 					else:
-						break							
+						break
 			else:
 				return offset
 		return PB_ERR.UNDEFINED_STATE
 
-	static func pack_message(data) -> PackedByteArray:
-		var DEFAULT_VALUES
+	static func pack_message(data: Dictionary) -> PackedByteArray:
+		var DEFAULT_VALUES: Dictionary
 		if PROTO_VERSION == 2:
 			DEFAULT_VALUES = DEFAULT_VALUES_2
 		elif PROTO_VERSION == 3:
@@ -555,7 +577,7 @@ class PBPacker:
 		var result : PackedByteArray = PackedByteArray()
 		var keys : Array = data.keys()
 		keys.sort()
-		for i in keys:
+		for i: Variant in keys:
 			if data[i].field.value != null:
 				if data[i].state == PB_SERVICE_STATE.UNFILLED \
 				&& !data[i].field.is_map_field \
@@ -570,26 +592,26 @@ class PBPacker:
 				return PackedByteArray()
 		return result
 
-	static func check_required(data) -> bool:
+	static func check_required(data: Dictionary) -> bool:
 		var keys : Array = data.keys()
-		for i in keys:
+		for i: Variant in keys:
 			if data[i].field.rule == PB_RULE.REQUIRED && data[i].state == PB_SERVICE_STATE.UNFILLED:
 				return false
 		return true
 
-	static func construct_map(key_values):
-		var result = {}
-		for kv in key_values:
+	static func construct_map(key_values: Array) -> Dictionary:
+		var result: Dictionary = {}
+		for kv: Variant in key_values:
 			result[kv.get_key()] = kv.get_value()
 		return result
-	
+
 	static func tabulate(text : String, nesting : int) -> String:
 		var tab : String = ""
-		for _i in range(nesting):
+		for _i: int in range(nesting):
 			tab += DEBUG_TAB
 		return tab + text
-	
-	static func value_to_string(value, field : PBField, nesting : int) -> String:
+
+	static func value_to_string(value: Variant, field : PBField, nesting : int) -> String:
 		var result : String = ""
 		var text : String
 		if field.type == PB_DATA_TYPE.MESSAGE:
@@ -605,7 +627,7 @@ class PBPacker:
 				result += "}"
 		elif field.type == PB_DATA_TYPE.BYTES:
 			result += "<"
-			for i in range(value.size()):
+			for i: int in range(value.size()):
 				result += str(value[i])
 				if i != (value.size() - 1):
 					result += ", "
@@ -617,15 +639,15 @@ class PBPacker:
 		else:
 			result += str(value)
 		return result
-	
+
 	static func field_to_string(field : PBField, nesting : int) -> String:
 		var result : String = tabulate(field.name + ": ", nesting)
 		if field.type == PB_DATA_TYPE.MAP:
 			if field.value.size() > 0:
 				result += "(\n"
 				nesting += 1
-				for i in range(field.value.size()):
-					var local_key_value = field.value[i].data[1].field
+				for i: int in range(field.value.size()):
+					var local_key_value: PBField = field.value[i].data[1].field
 					result += tabulate(value_to_string(local_key_value.value, local_key_value, nesting), nesting) + ": "
 					local_key_value = field.value[i].data[2].field
 					result += value_to_string(local_key_value.value, local_key_value, nesting)
@@ -640,7 +662,7 @@ class PBPacker:
 			if field.value.size() > 0:
 				result += "[\n"
 				nesting += 1
-				for i in range(field.value.size()):
+				for i: int in range(field.value.size()):
 					result += tabulate(str(i) + ": ", nesting)
 					result += value_to_string(field.value[i], field, nesting)
 					if i != (field.value.size() - 1):
@@ -654,9 +676,9 @@ class PBPacker:
 			result += value_to_string(field.value, field, nesting)
 		result += ";\n"
 		return result
-		
-	static func message_to_string(data, nesting : int = 0) -> String:
-		var DEFAULT_VALUES
+
+	static func message_to_string(data: Dictionary, nesting : int = 0) -> String:
+		var DEFAULT_VALUES: Dictionary
 		if PROTO_VERSION == 2:
 			DEFAULT_VALUES = DEFAULT_VALUES_2
 		elif PROTO_VERSION == 3:
@@ -664,7 +686,7 @@ class PBPacker:
 		var result : String = ""
 		var keys : Array = data.keys()
 		keys.sort()
-		for i in keys:
+		for i: Variant in keys:
 			if data[i].field.value != null:
 				if data[i].state == PB_SERVICE_STATE.UNFILLED \
 				&& !data[i].field.is_map_field \
@@ -677,3 +699,5 @@ class PBPacker:
 			elif data[i].field.rule == PB_RULE.REQUIRED:
 				result += data[i].field.name + ": " + "error"
 		return result
+
+	@warning_ignore_restore("unsafe_cast", "unsafe_call_argument", "unsafe_method_access", "unsafe_property_access", "untyped_declaration", "inferred_declaration", "return_value_discarded")

@@ -3,12 +3,24 @@ syntax = "proto3";
 package example;
 
 message Player {
-  string name = 1;
-  int32 level = 2;
-  int32 health = 3;
-  int32 mana = 4;
-  repeated string items = 5;
+  // --- all scalar types ---
+  double double_val = 1;
+  float float_val = 2;
+  int32 int32_val = 3;
+  int64 int64_val = 4;
+  uint32 uint32_val = 5;
+  uint64 uint64_val = 6;
+  sint32 sint32_val = 7;
+  sint64 sint64_val = 8;
+  fixed32 fixed32_val = 9;
+  fixed64 fixed64_val = 10;
+  sfixed32 sfixed32_val = 11;
+  sfixed64 sfixed64_val = 12;
+  bool bool_val = 13;
+  string string_val = 14;
+  bytes bytes_val = 15;
 
+  // --- enum ---
   enum Class {
     UNKNOWN = 0;
     WARRIOR = 1;
@@ -16,5 +28,38 @@ message Player {
     ROGUE = 3;
     CLERIC = 4;
   }
-  Class class = 6;
+  Class class = 16;
+
+  // --- repeated scalars ---
+  repeated string items = 17;
+
+  // --- oneof ---
+  oneof contact {
+    string email = 18;
+    int64 phone = 19;
+  }
+
+  // --- nested message ---
+  message Stats {
+    int32 strength = 1;
+    int32 agility = 2;
+    int32 intelligence = 3;
+  }
+  Stats stats = 20;
+
+  // --- repeated nested message ---
+  repeated Stats history = 21;
+
+  // --- map types ---
+  map<string, string> metadata = 22;
+  map<int32, string> labels = 23;
+
+  // --- nested enum in map value ---
+  enum Skill {
+    NONE = 0;
+    FIRE = 1;
+    ICE = 2;
+    LIGHTNING = 3;
+  }
+  map<string, Skill> skills = 24;
 }

@@ -31,8 +31,8 @@
 
 extends Node
 
-const PROTO_VERSION_CONST : String = "const PROTO_VERSION = "
-const PROTO_VERSION_DEFAULT : String = PROTO_VERSION_CONST + "0"
+const PROTO_VERSION_CONST : String = "const PROTO_VERSION: int = "
+const PROTO_VERSION_DEFAULT : String = "const PROTO_VERSION: int = 0"
 const WARNING_IGNORE_ANNOTATIONS : String = "@warning_ignore_start(\"untyped_declaration\")\n@warning_ignore_start(\"inferred_declaration\")\n@warning_ignore_start(\"unsafe_call_argument\")\n@warning_ignore_start(\"unsafe_method_access\")\n@warning_ignore_start(\"return_value_discarded\")\n\n"
 
 const ONE_OF_CASE_FUNCTION_SUFFIX : String = "_case"
@@ -1749,7 +1749,7 @@ class Translator:
 		elif field.field_type == Analysis.FIELD_TYPE.BOOL:
 			return "bool"
 		elif field.field_type == Analysis.FIELD_TYPE.ENUM:
-			return ""
+			return "int"
 		elif field.field_type == Analysis.FIELD_TYPE.FIXED32:
 			return "int"
 		elif field.field_type == Analysis.FIELD_TYPE.SFIXED32:
@@ -1878,6 +1878,8 @@ class Translator:
 		var f : Analysis.ASTField = field_table[field_index]
 		var varname : String = "__" + f.name
 		var oneof_field : bool = is_oneof_field(field_index)
+		var getter_suffix: String = "_" if f.name in ["class", "script"] else ""
+		var getter_name: String = "get_" + f.name + getter_suffix
 		text += tabulate("var " + varname + ": PBField\n", nesting)
 		if f.field_type == Analysis.FIELD_TYPE.MESSAGE:
 			var the_class_name : String = class_table[f.type_class_id].parent_name + "." + class_table[f.type_class_id].name
@@ -1886,7 +1888,7 @@ class Translator:
 			if oneof_field:
 				text += generate_has_oneof(field_index, nesting)
 			if f.qualificator == Analysis.FIELD_QUALIFICATOR.REPEATED:
-				text += tabulate("func get_" + f.name + "() -> Array[" + the_class_name + "]:\n", nesting)
+				text += tabulate("func " + getter_name + "() -> Array[" + the_class_name + "]:\n", nesting)
 			else:
 				if f.qualificator == Analysis.FIELD_QUALIFICATOR.OPTIONAL && !oneof_field:
 					text += tabulate("func has_" + f.name + "() -> bool:\n", nesting)
@@ -1897,7 +1899,7 @@ class Translator:
 					nesting -= 1
 					text += tabulate("return false\n", nesting)
 					nesting -= 1
-				text += tabulate("func get_" + f.name + "() -> " + the_class_name + ":\n", nesting)
+				text += tabulate("func " + getter_name + "() -> " + the_class_name + ":\n", nesting)
 			nesting += 1
 			text += tabulate("return " + varname + ".value\n", nesting)
 			nesting -= 1
@@ -1905,12 +1907,12 @@ class Translator:
 			nesting += 1
 			text += tabulate("data[" + str(f.tag) + "].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
 			if f.qualificator == Analysis.FIELD_QUALIFICATOR.REPEATED:
-				text += tabulate(varname + ".value.clear()\n", nesting)
+				text += tabulate(varname + ".clear_array()\n", nesting)
 				nesting -= 1
 				text += tabulate("func add_" + f.name + "() -> " + the_class_name + ":\n", nesting)
 				nesting += 1
-				text += tabulate("var element = " + the_class_name + ".new()\n", nesting)
-				text += tabulate(varname + ".value.append(element)\n", nesting)
+				text += tabulate("var element: " + the_class_name + " = " + the_class_name + ".new()\n", nesting)
+				text += tabulate(varname + ".append_array(element)\n", nesting)
 				text += tabulate("return element\n", nesting)
 			else:
 				text += tabulate(varname + ".value = " + default_dict_text() + "[" + generate_field_type(f) + "]\n", nesting)
@@ -1929,15 +1931,15 @@ class Translator:
 
 			if oneof_field:
 				text += generate_has_oneof(field_index, nesting)
-			text += tabulate("func get_raw_" + f.name + "():\n", nesting)
+			text += tabulate("func get_raw_" + f.name + "() -> Variant:\n", nesting)
 			nesting += 1
 			text += tabulate("return " + varname + ".value\n", nesting)
 			nesting -= 1
-			text += tabulate("func get_" + f.name + "():\n", nesting)
+			text += tabulate("func " + getter_name + "() -> Dictionary:\n", nesting)
 			nesting += 1
-			text += tabulate("return PBPacker.construct_map(" + varname + ".value)\n", nesting)
+			text += tabulate("return PBPacker.construct_map(" + varname + ".as_array())\n", nesting)
 			nesting -= 1
-			text += tabulate("func clear_" + f.name + "():\n", nesting)
+			text += tabulate("func clear_" + f.name + "() -> void:\n", nesting)
 			nesting += 1
 			text += tabulate("data[" + str(f.tag) + "].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
 			text += tabulate(varname + ".value = " + default_dict_text() + "[" + generate_field_type(f) + "]\n", nesting)
@@ -1947,7 +1949,13 @@ class Translator:
 						if field_index == i:
 							text += tabulate("_" + g.name + ONE_OF_CASE_INNER_FIELD_SUFFIX + " = " + str(ONE_OF_CASE_DEFAULT_VALUE) + "\n", nesting)
 							break
+
 			nesting -= 1
+			var key_gd_type : String = ""
+			for j in range(field_table.size()):
+				if field_table[j].parent_class_id == f.type_class_id && field_table[j].name == "key":
+					key_gd_type = generate_gdscript_simple_type(field_table[j])
+					break
 			for i in range(field_table.size()):
 				if field_table[i].parent_class_id == f.type_class_id && field_table[i].name == "value":
 					var gd_type : String = generate_gdscript_simple_type(field_table[i])
@@ -1961,57 +1969,43 @@ class Translator:
 					nesting += 1
 					if oneof_field:
 						text += generate_group_clear(field_index, nesting)
-					text += tabulate("var element = " + the_class_name + ".new()\n", nesting)
-					text += tabulate(varname + ".value.append(element)\n", nesting)
+					text += tabulate("var element: " + the_class_name + " = " + the_class_name + ".new()\n", nesting)
+					text += tabulate(varname + ".append_array(element)\n", nesting)
 					text += tabulate("return element\n", nesting)
 					nesting -= 1
 					if field_table[i].field_type == Analysis.FIELD_TYPE.MESSAGE:
-						text += tabulate("func add_" + f.name + "(a_key)" + value_return_type + ":\n", nesting)
+						text += tabulate("func add_" + f.name + "(a_key: " + key_gd_type + ")" + value_return_type + ":\n", nesting)
 						nesting += 1
 						if oneof_field:
 							text += generate_group_clear(field_index, nesting)
-						text += tabulate("var idx = -1\n", nesting)
-						text += tabulate("for i in range(" + varname + ".value.size()):\n", nesting)
-						nesting += 1
-						text += tabulate("if " + varname + ".value[i].get_key() == a_key:\n", nesting)
-						nesting += 1
-						text += tabulate("idx = i\n", nesting)
-						text += tabulate("break\n", nesting)
-						nesting -= 2
-						text += tabulate("var element = " + the_class_name + ".new()\n", nesting)
+						text += tabulate("var idx: int = " + varname + ".find_map_index(a_key)\n", nesting)
+						text += tabulate("var element: " + the_class_name + " = " + the_class_name + ".new()\n", nesting)
 						text += tabulate("element.set_key(a_key)\n", nesting)
 						text += tabulate("if idx != -1:\n", nesting)
 						nesting += 1
-						text += tabulate(varname + ".value[idx] = element\n", nesting)
+						text += tabulate(varname + ".set_map_element(idx, element)\n", nesting)
 						nesting -= 1
 						text += tabulate("else:\n", nesting)
 						nesting += 1
-						text += tabulate(varname + ".value.append(element)\n", nesting)
+						text += tabulate(varname + ".append_array(element)\n", nesting)
 						nesting -= 1
 						text += tabulate("return element.new_value()\n", nesting)
 					else:
-						text += tabulate("func add_" + f.name + "(a_key, a_value) -> void:\n", nesting)
+						text += tabulate("func add_" + f.name + "(a_key: " + key_gd_type + ", a_value: " + gd_type + ") -> void:\n", nesting)
 						nesting += 1
 						if oneof_field:
 							text += generate_group_clear(field_index, nesting)
-						text += tabulate("var idx = -1\n", nesting)
-						text += tabulate("for i in range(" + varname + ".value.size()):\n", nesting)
-						nesting += 1
-						text += tabulate("if " + varname + ".value[i].get_key() == a_key:\n", nesting)
-						nesting += 1
-						text += tabulate("idx = i\n", nesting)
-						text += tabulate("break\n", nesting)
-						nesting -= 2
-						text += tabulate("var element = " + the_class_name + ".new()\n", nesting)
+						text += tabulate("var idx: int = " + varname + ".find_map_index(a_key)\n", nesting)
+						text += tabulate("var element: " + the_class_name + " = " + the_class_name + ".new()\n", nesting)
 						text += tabulate("element.set_key(a_key)\n", nesting)
 						text += tabulate("element.set_value(a_value)\n", nesting)
 						text += tabulate("if idx != -1:\n", nesting)
 						nesting += 1
-						text += tabulate(varname + ".value[idx] = element\n", nesting)
+						text += tabulate(varname + ".set_map_element(idx, element)\n", nesting)
 						nesting -= 1
 						text += tabulate("else:\n", nesting)
 						nesting += 1
-						text += tabulate(varname + ".value.append(element)\n", nesting)
+						text += tabulate(varname + ".append_array(element)\n", nesting)
 						nesting -= 1
 					break
 		else:
@@ -2025,7 +2019,7 @@ class Translator:
 				text += generate_has_oneof(field_index, nesting)
 			if f.qualificator == Analysis.FIELD_QUALIFICATOR.REPEATED:
 				var array_type := "[" + gd_type + "]" if gd_type else ""
-				text += tabulate("func get_" + f.name + "() -> Array" + array_type + ":\n", nesting)
+				text += tabulate("func " + getter_name + "() -> Array" + array_type + ":\n", nesting)
 			else:
 				if f.qualificator == Analysis.FIELD_QUALIFICATOR.OPTIONAL && !oneof_field:
 					text += tabulate("func has_" + f.name + "() -> bool:\n", nesting)
@@ -2036,7 +2030,7 @@ class Translator:
 					nesting -= 1
 					text += tabulate("return false\n", nesting)
 					nesting -= 1
-				text += tabulate("func get_" + f.name + "()" + return_type + ":\n", nesting)
+				text += tabulate("func " + getter_name + "()" + return_type + ":\n", nesting)
 			nesting += 1
 			text += tabulate("return " + varname + ".value\n", nesting)
 			nesting -= 1
@@ -2050,11 +2044,11 @@ class Translator:
 							text += tabulate("_" + g.name + ONE_OF_CASE_INNER_FIELD_SUFFIX + " = " + str(ONE_OF_CASE_DEFAULT_VALUE) + "\n", nesting)
 							break
 			if f.qualificator == Analysis.FIELD_QUALIFICATOR.REPEATED:
-				text += tabulate(varname + ".value.clear()\n", nesting)
+				text += tabulate(varname + ".clear_array()\n", nesting)
 				nesting -= 1
 				text += tabulate("func add_" + f.name + "(value" + argument_type + ") -> void:\n", nesting)
 				nesting += 1
-				text += tabulate(varname + ".value.append(value)\n", nesting)
+				text += tabulate(varname + ".append_array(value)\n", nesting)
 			else:
 				text += tabulate(varname + ".value = " + default_dict_text() + "[" + generate_field_type(f) + "]\n", nesting)
 				nesting -= 1
@@ -2074,10 +2068,10 @@ class Translator:
 				cls_pref += tabulate("class " + class_table[class_index].name + ":\n", nesting)
 			nesting += 1
 			cls_pref += tabulate("extends RefCounted\n", nesting)
-			cls_pref += tabulate("func _init():\n", nesting)
+			cls_pref += tabulate("func _init() -> void:\n", nesting)
 			text += cls_pref
 			nesting += 1
-			text += tabulate("var service\n", nesting)
+			text += tabulate("var service: PBServiceField\n", nesting)
 			text += tabulate("\n", nesting)
 			var field_text : String = ""
 			for i in range(field_table.size()):
@@ -2087,7 +2081,7 @@ class Translator:
 					field_text += generate_field(i, nesting - 1, prefix_options)
 					field_text += tabulate("\n", nesting - 1)
 			nesting -= 1
-			text += tabulate("var data = {}\n", nesting)
+			text += tabulate("var data: Dictionary = {}\n", nesting)
 			text += tabulate("\n", nesting)
 			text += generate_group_definitions(class_index, nesting)
 			text += field_text
@@ -2143,12 +2137,12 @@ class Translator:
 		nesting -= 1
 		text += tabulate("func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:\n", nesting)
 		nesting += 1
-		text += tabulate("var cur_limit = bytes.size()\n", nesting)
+		text += tabulate("var cur_limit: int = bytes.size()\n", nesting)
 		text += tabulate("if limit != -1:\n", nesting)
 		nesting += 1
 		text += tabulate("cur_limit = limit\n", nesting)
 		nesting -= 1
-		text += tabulate("var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)\n", nesting)
+		text += tabulate("var result: int = PBPacker.unpack_message(data, bytes, offset, cur_limit)\n", nesting)
 		text += tabulate("if result == cur_limit:\n", nesting)
 		nesting += 1
 		text += tabulate("if PBPacker.check_required(data):\n", nesting)

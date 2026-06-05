@@ -31,7 +31,7 @@
 
 # DEBUG_TAB redefine this "  " if you need, example: const DEBUG_TAB = "\t"
 
-const PROTO_VERSION = 3
+const PROTO_VERSION: int = 3
 
 const DEBUG_TAB : String = "  "
 
@@ -69,7 +69,7 @@ enum PB_DATA_TYPE {
 	MAP = 17
 }
 
-const DEFAULT_VALUES_2 = {
+const DEFAULT_VALUES_2: Dictionary = {
 	PB_DATA_TYPE.INT32: null,
 	PB_DATA_TYPE.SINT32: null,
 	PB_DATA_TYPE.UINT32: null,
@@ -90,7 +90,7 @@ const DEFAULT_VALUES_2 = {
 	PB_DATA_TYPE.MAP: null
 }
 
-const DEFAULT_VALUES_3 = {
+const DEFAULT_VALUES_3: Dictionary = {
 	PB_DATA_TYPE.INT32: 0,
 	PB_DATA_TYPE.SINT32: 0,
 	PB_DATA_TYPE.UINT32: 0,
@@ -133,24 +133,46 @@ enum PB_SERVICE_STATE {
 	UNFILLED = 1
 }
 
+@warning_ignore_start("unsafe_cast", "unsafe_call_argument", "unsafe_method_access", "unsafe_property_access", "untyped_declaration", "inferred_declaration", "return_value_discarded")
+
 class PBField:
 	extends RefCounted
-	func _init(a_name : String, a_type : int, a_rule : int, a_tag : int, packed : bool, a_value = null):
+	func _init(a_name : String, a_type : int, a_rule : int, a_tag : int, packed : bool, a_value: Variant = null) -> void:
 		name = a_name
 		type = a_type
 		rule = a_rule
 		tag = a_tag
 		option_packed = packed
 		value = a_value
-		
+
 	var name : String
 	var type : int
 	var rule : int
 	var tag : int
 	var option_packed : bool
-	var value
+	var value: Variant
 	var is_map_field : bool = false
 	var option_default : bool = false
+
+	func clear_array() -> void:
+		(value as Array).clear()
+
+	func append_array(v: Variant) -> void:
+		(value as Array).append(v)
+
+	func as_array() -> Array:
+		return value as Array
+
+	func find_map_index(key: Variant) -> int:
+		var arr: Array = value as Array
+		for i: int in range(arr.size()):
+			if arr[i].get_key() == key:
+				return i
+		return -1
+
+	func set_map_element(index: int, element: Variant) -> void:
+		(value as Array)[index] = element
+
 
 class PBTypeTag:
 	extends RefCounted
@@ -162,7 +184,7 @@ class PBTypeTag:
 class PBServiceField:
 	extends RefCounted
 	var field : PBField
-	var func_ref = null
+	var func_ref: Callable = Callable()
 	var state : int = PB_SERVICE_STATE.UNFILLED
 
 class PBPacker:
@@ -178,26 +200,26 @@ class PBPacker:
 		else:
 			return (n >> 1)
 
-	static func pack_varint(value) -> PackedByteArray:
+	static func pack_varint(value: Variant) -> PackedByteArray:
 		var varint : PackedByteArray = PackedByteArray()
 		if typeof(value) == TYPE_BOOL:
 			if value:
 				value = 1
 			else:
 				value = 0
-		for _i in range(9):
-			var b = value & 0x7F
+		for _i: int in range(9):
+			var b: int = value & 0x7F
 			value >>= 7
 			if value:
-				varint.append(b | 0x80)
+				var _d: bool = varint.append(b | 0x80)
 			else:
-				varint.append(b)
+				var _d: bool = varint.append(b)
 				break
 		if varint.size() == 9 && (varint[8] & 0x80 != 0):
-			varint.append(0x01)
+			var _d: bool = varint.append(0x01)
 		return varint
 
-	static func pack_bytes(value, count : int, data_type : int) -> PackedByteArray:
+	static func pack_bytes(value: Variant, count : int, data_type : int) -> PackedByteArray:
 		var bytes : PackedByteArray = PackedByteArray()
 		if data_type == PB_DATA_TYPE.FLOAT:
 			var spb : StreamPeerBuffer = StreamPeerBuffer.new()
@@ -208,12 +230,12 @@ class PBPacker:
 			spb.put_double(value)
 			bytes = spb.get_data_array()
 		else:
-			for _i in range(count):
-				bytes.append(value & 0xFF)
+			for _i: int in range(count):
+				var _d: bool = bytes.append(value & 0xFF)
 				value >>= 8
 		return bytes
 
-	static func unpack_bytes(bytes : PackedByteArray, index : int, count : int, data_type : int):
+	static func unpack_bytes(bytes : PackedByteArray, index : int, count : int, data_type : int) -> Variant:
 		if data_type == PB_DATA_TYPE.FLOAT:
 			return bytes.decode_float(index)
 		elif data_type == PB_DATA_TYPE.DOUBLE:
@@ -228,11 +250,11 @@ class PBPacker:
 			return bytes.decode_s64(index)
 		else:
 			var value : int = 0
-			for i in range(count):
+			for i: int in range(count):
 				value |= bytes[index + i] << (8 * i)
 			return value
 
-	static func unpack_varint(varint_bytes) -> int:
+	static func unpack_varint(varint_bytes: PackedByteArray) -> int:
 		var value : int = 0
 		var i: int = varint_bytes.size() - 1
 		while i > -1:
@@ -288,9 +310,9 @@ class PBPacker:
 		var head : PackedByteArray = pack_type_tag(type, field.tag)
 		var data : PackedByteArray = PackedByteArray()
 		if type == PB_TYPE.VARINT:
-			var value
+			var value: Variant
 			if field.rule == PB_RULE.REPEATED:
-				for v in field.value:
+				for v in (field.value as Array):
 					data.append_array(head)
 					if field.type == PB_DATA_TYPE.SINT32 || field.type == PB_DATA_TYPE.SINT64:
 						value = convert_signed(v)
@@ -306,7 +328,7 @@ class PBPacker:
 				data = pack_varint(value)
 		elif type == PB_TYPE.FIX32:
 			if field.rule == PB_RULE.REPEATED:
-				for v in field.value:
+				for v in (field.value as Array):
 					data.append_array(head)
 					data.append_array(pack_bytes(v, 4, field.type))
 				return data
@@ -314,7 +336,7 @@ class PBPacker:
 				data.append_array(pack_bytes(field.value, 4, field.type))
 		elif type == PB_TYPE.FIX64:
 			if field.rule == PB_RULE.REPEATED:
-				for v in field.value:
+				for v in (field.value as Array):
 					data.append_array(head)
 					data.append_array(pack_bytes(v, 8, field.type))
 				return data
@@ -325,32 +347,32 @@ class PBPacker:
 				if type_copy == PB_TYPE.VARINT:
 					if field.type == PB_DATA_TYPE.SINT32 || field.type == PB_DATA_TYPE.SINT64:
 						var signed_value : int
-						for v in field.value:
+						for v in (field.value as Array):
 							signed_value = convert_signed(v)
 							data.append_array(pack_varint(signed_value))
 					else:
-						for v in field.value:
+						for v in (field.value as Array):
 							data.append_array(pack_varint(v))
 					return pack_length_delimeted(type, field.tag, data)
 				elif type_copy == PB_TYPE.FIX32:
-					for v in field.value:
+					for v in (field.value as Array):
 						data.append_array(pack_bytes(v, 4, field.type))
 					return pack_length_delimeted(type, field.tag, data)
 				elif type_copy == PB_TYPE.FIX64:
-					for v in field.value:
+					for v in (field.value as Array):
 						data.append_array(pack_bytes(v, 8, field.type))
 					return pack_length_delimeted(type, field.tag, data)
 				elif field.type == PB_DATA_TYPE.STRING:
-					for v in field.value:
-						var obj = v.to_utf8_buffer()
+					for v in (field.value as Array):
+						var obj: PackedByteArray = v.to_utf8_buffer()
 						data.append_array(pack_length_delimeted(type, field.tag, obj))
 					return data
 				elif field.type == PB_DATA_TYPE.BYTES:
-					for v in field.value:
+					for v in (field.value as Array):
 						data.append_array(pack_length_delimeted(type, field.tag, v))
 					return data
-				elif typeof(field.value[0]) == TYPE_OBJECT:
-					for v in field.value:
+				elif typeof((field.value as Array)[0]) == TYPE_OBJECT:
+					for v in (field.value as Array):
 						var obj : PackedByteArray = v.to_bytes()
 						data.append_array(pack_length_delimeted(type, field.tag, obj))
 					return data
@@ -390,15 +412,15 @@ class PBPacker:
 			return offset + 4
 		return PB_ERR.UNDEFINED_STATE
 
-	static func unpack_field(bytes : PackedByteArray, offset : int, field : PBField, type : int, message_func_ref) -> int:
+	static func unpack_field(bytes : PackedByteArray, offset : int, field : PBField, type : int, message_func_ref: Callable = Callable()) -> int:
 		if field.rule == PB_RULE.REPEATED && type != PB_TYPE.LENGTHDEL && field.option_packed:
-			var count = isolate_varint(bytes, offset)
-			if count.size() > 0:
-				offset += count.size()
-				count = unpack_varint(count)
+			var count_bytes: PackedByteArray = isolate_varint(bytes, offset)
+			if count_bytes.size() > 0:
+				offset += count_bytes.size()
+				var count: int = unpack_varint(count_bytes)
 				if type == PB_TYPE.VARINT:
-					var val
-					var counter = offset + count
+					var val: Variant
+					var counter: int = offset + count
 					while offset < counter:
 						val = isolate_varint(bytes, offset)
 						if val.size() > 0:
@@ -416,13 +438,13 @@ class PBPacker:
 							return PB_ERR.REPEATED_COUNT_MISMATCH
 					return offset
 				elif type == PB_TYPE.FIX32 || type == PB_TYPE.FIX64:
-					var type_size
+					var type_size: int
 					if type == PB_TYPE.FIX32:
 						type_size = 4
 					else:
 						type_size = 8
-					var val
-					var counter = offset + count
+					var val: Variant
+					var counter: int = offset + count
 					while offset < counter:
 						if (offset + type_size) > bytes.size():
 							return PB_ERR.REPEATED_COUNT_MISMATCH
@@ -434,7 +456,7 @@ class PBPacker:
 				return PB_ERR.REPEATED_COUNT_NOT_FOUND
 		else:
 			if type == PB_TYPE.VARINT:
-				var val = isolate_varint(bytes, offset)
+				var val: Variant = isolate_varint(bytes, offset)
 				if val.size() > 0:
 					offset += val.size()
 					val = unpack_varint(val)
@@ -453,12 +475,12 @@ class PBPacker:
 					return PB_ERR.VARINT_NOT_FOUND
 				return offset
 			elif type == PB_TYPE.FIX32 || type == PB_TYPE.FIX64:
-				var type_size
+				var type_size: int
 				if type == PB_TYPE.FIX32:
 					type_size = 4
 				else:
 					type_size = 8
-				var val
+				var val: Variant
 				if (offset + type_size) > bytes.size():
 					return PB_ERR.REPEATED_COUNT_MISMATCH
 				val = unpack_bytes(bytes, offset, type_size, field.type)
@@ -469,17 +491,17 @@ class PBPacker:
 					field.value = val
 				return offset
 			elif type == PB_TYPE.LENGTHDEL:
-				var inner_size = isolate_varint(bytes, offset)
-				if inner_size.size() > 0:
-					offset += inner_size.size()
-					inner_size = unpack_varint(inner_size)
+				var inner_bytes: PackedByteArray = isolate_varint(bytes, offset)
+				if inner_bytes.size() > 0:
+					offset += inner_bytes.size()
+					var inner_size: int = unpack_varint(inner_bytes)
 					if inner_size >= 0:
 						if inner_size + offset > bytes.size():
 							return PB_ERR.LENGTHDEL_SIZE_MISMATCH
-						if message_func_ref != null:
-							var message = message_func_ref.call()
+						if message_func_ref.is_valid():
+							var message: RefCounted = message_func_ref.call()
 							if inner_size > 0:
-								var sub_offset = message.from_bytes(bytes, offset, inner_size + offset)
+								var sub_offset: int = message.from_bytes(bytes, offset, inner_size + offset)
 								if sub_offset > 0:
 									if sub_offset - offset >= inner_size:
 										offset = sub_offset
@@ -509,13 +531,13 @@ class PBPacker:
 					return PB_ERR.LENGTHDEL_SIZE_NOT_FOUND
 		return PB_ERR.UNDEFINED_STATE
 
-	static func unpack_message(data, bytes : PackedByteArray, offset : int, limit : int) -> int:
+	static func unpack_message(data: Dictionary, bytes : PackedByteArray, offset : int, limit : int) -> int:
 		while true:
 			var tt : PBTypeTag = unpack_type_tag(bytes, offset)
 			if tt.ok:
 				offset += tt.offset
 				if data.has(tt.tag):
-					var service : PBServiceField = data[tt.tag]
+					var service: PBServiceField = data[tt.tag]
 					var type : int = pb_type_from_data_type(service.field.type)
 					if type == tt.type || (tt.type == PB_TYPE.LENGTHDEL && service.field.rule == PB_RULE.REPEATED && service.field.option_packed):
 						var res : int = unpack_field(bytes, offset, service.field, type, service.func_ref)
@@ -541,13 +563,13 @@ class PBPacker:
 					elif res < 0:
 						return res
 					else:
-						break							
+						break
 			else:
 				return offset
 		return PB_ERR.UNDEFINED_STATE
 
-	static func pack_message(data) -> PackedByteArray:
-		var DEFAULT_VALUES
+	static func pack_message(data: Dictionary) -> PackedByteArray:
+		var DEFAULT_VALUES: Dictionary
 		if PROTO_VERSION == 2:
 			DEFAULT_VALUES = DEFAULT_VALUES_2
 		elif PROTO_VERSION == 3:
@@ -555,7 +577,7 @@ class PBPacker:
 		var result : PackedByteArray = PackedByteArray()
 		var keys : Array = data.keys()
 		keys.sort()
-		for i in keys:
+		for i: Variant in keys:
 			if data[i].field.value != null:
 				if data[i].state == PB_SERVICE_STATE.UNFILLED \
 				&& !data[i].field.is_map_field \
@@ -570,26 +592,26 @@ class PBPacker:
 				return PackedByteArray()
 		return result
 
-	static func check_required(data) -> bool:
+	static func check_required(data: Dictionary) -> bool:
 		var keys : Array = data.keys()
-		for i in keys:
+		for i: Variant in keys:
 			if data[i].field.rule == PB_RULE.REQUIRED && data[i].state == PB_SERVICE_STATE.UNFILLED:
 				return false
 		return true
 
-	static func construct_map(key_values):
-		var result = {}
-		for kv in key_values:
+	static func construct_map(key_values: Array) -> Dictionary:
+		var result: Dictionary = {}
+		for kv: Variant in key_values:
 			result[kv.get_key()] = kv.get_value()
 		return result
-	
+
 	static func tabulate(text : String, nesting : int) -> String:
 		var tab : String = ""
-		for _i in range(nesting):
+		for _i: int in range(nesting):
 			tab += DEBUG_TAB
 		return tab + text
-	
-	static func value_to_string(value, field : PBField, nesting : int) -> String:
+
+	static func value_to_string(value: Variant, field : PBField, nesting : int) -> String:
 		var result : String = ""
 		var text : String
 		if field.type == PB_DATA_TYPE.MESSAGE:
@@ -605,7 +627,7 @@ class PBPacker:
 				result += "}"
 		elif field.type == PB_DATA_TYPE.BYTES:
 			result += "<"
-			for i in range(value.size()):
+			for i: int in range(value.size()):
 				result += str(value[i])
 				if i != (value.size() - 1):
 					result += ", "
@@ -617,15 +639,15 @@ class PBPacker:
 		else:
 			result += str(value)
 		return result
-	
+
 	static func field_to_string(field : PBField, nesting : int) -> String:
 		var result : String = tabulate(field.name + ": ", nesting)
 		if field.type == PB_DATA_TYPE.MAP:
 			if field.value.size() > 0:
 				result += "(\n"
 				nesting += 1
-				for i in range(field.value.size()):
-					var local_key_value = field.value[i].data[1].field
+				for i: int in range(field.value.size()):
+					var local_key_value: PBField = field.value[i].data[1].field
 					result += tabulate(value_to_string(local_key_value.value, local_key_value, nesting), nesting) + ": "
 					local_key_value = field.value[i].data[2].field
 					result += value_to_string(local_key_value.value, local_key_value, nesting)
@@ -640,7 +662,7 @@ class PBPacker:
 			if field.value.size() > 0:
 				result += "[\n"
 				nesting += 1
-				for i in range(field.value.size()):
+				for i: int in range(field.value.size()):
 					result += tabulate(str(i) + ": ", nesting)
 					result += value_to_string(field.value[i], field, nesting)
 					if i != (field.value.size() - 1):
@@ -654,9 +676,9 @@ class PBPacker:
 			result += value_to_string(field.value, field, nesting)
 		result += ";\n"
 		return result
-		
-	static func message_to_string(data, nesting : int = 0) -> String:
-		var DEFAULT_VALUES
+
+	static func message_to_string(data: Dictionary, nesting : int = 0) -> String:
+		var DEFAULT_VALUES: Dictionary
 		if PROTO_VERSION == 2:
 			DEFAULT_VALUES = DEFAULT_VALUES_2
 		elif PROTO_VERSION == 3:
@@ -664,7 +686,7 @@ class PBPacker:
 		var result : String = ""
 		var keys : Array = data.keys()
 		keys.sort()
-		for i in keys:
+		for i: Variant in keys:
 			if data[i].field.value != null:
 				if data[i].state == PB_SERVICE_STATE.UNFILLED \
 				&& !data[i].field.is_map_field \
@@ -678,6 +700,8 @@ class PBPacker:
 				result += data[i].field.name + ": " + "error"
 		return result
 
+	@warning_ignore_restore("unsafe_cast", "unsafe_call_argument", "unsafe_method_access", "unsafe_property_access", "untyped_declaration", "inferred_declaration", "return_value_discarded")
+
 
 
 ############### USER DATA BEGIN ################
@@ -685,116 +709,490 @@ class PBPacker:
 
 class Player:
 	extends RefCounted
-	func _init():
-		var service
+	func _init() -> void:
+		var service: PBServiceField
 		
-		__name = PBField.new("name", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		__double_val = PBField.new("double_val", PB_DATA_TYPE.DOUBLE, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.DOUBLE])
 		service = PBServiceField.new()
-		service.field = __name
-		data[__name.tag] = service
+		service.field = __double_val
+		data[__double_val.tag] = service
 		
-		__level = PBField.new("level", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
+		__float_val = PBField.new("float_val", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
 		service = PBServiceField.new()
-		service.field = __level
-		data[__level.tag] = service
+		service.field = __float_val
+		data[__float_val.tag] = service
 		
-		__health = PBField.new("health", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
+		__int32_val = PBField.new("int32_val", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
 		service = PBServiceField.new()
-		service.field = __health
-		data[__health.tag] = service
+		service.field = __int32_val
+		data[__int32_val.tag] = service
 		
-		__mana = PBField.new("mana", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
+		__int64_val = PBField.new("int64_val", PB_DATA_TYPE.INT64, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT64])
 		service = PBServiceField.new()
-		service.field = __mana
-		data[__mana.tag] = service
+		service.field = __int64_val
+		data[__int64_val.tag] = service
 		
-		var __items_default: Array[String] = []
-		__items = PBField.new("items", PB_DATA_TYPE.STRING, PB_RULE.REPEATED, 5, true, __items_default)
+		__uint32_val = PBField.new("uint32_val", PB_DATA_TYPE.UINT32, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32])
 		service = PBServiceField.new()
-		service.field = __items
-		data[__items.tag] = service
+		service.field = __uint32_val
+		data[__uint32_val.tag] = service
 		
-		__class = PBField.new("class", PB_DATA_TYPE.ENUM, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM])
+		__uint64_val = PBField.new("uint64_val", PB_DATA_TYPE.UINT64, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.UINT64])
+		service = PBServiceField.new()
+		service.field = __uint64_val
+		data[__uint64_val.tag] = service
+		
+		__sint32_val = PBField.new("sint32_val", PB_DATA_TYPE.SINT32, PB_RULE.OPTIONAL, 7, true, DEFAULT_VALUES_3[PB_DATA_TYPE.SINT32])
+		service = PBServiceField.new()
+		service.field = __sint32_val
+		data[__sint32_val.tag] = service
+		
+		__sint64_val = PBField.new("sint64_val", PB_DATA_TYPE.SINT64, PB_RULE.OPTIONAL, 8, true, DEFAULT_VALUES_3[PB_DATA_TYPE.SINT64])
+		service = PBServiceField.new()
+		service.field = __sint64_val
+		data[__sint64_val.tag] = service
+		
+		__fixed32_val = PBField.new("fixed32_val", PB_DATA_TYPE.FIXED32, PB_RULE.OPTIONAL, 9, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FIXED32])
+		service = PBServiceField.new()
+		service.field = __fixed32_val
+		data[__fixed32_val.tag] = service
+		
+		__fixed64_val = PBField.new("fixed64_val", PB_DATA_TYPE.FIXED64, PB_RULE.OPTIONAL, 10, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FIXED64])
+		service = PBServiceField.new()
+		service.field = __fixed64_val
+		data[__fixed64_val.tag] = service
+		
+		__sfixed32_val = PBField.new("sfixed32_val", PB_DATA_TYPE.SFIXED32, PB_RULE.OPTIONAL, 11, true, DEFAULT_VALUES_3[PB_DATA_TYPE.SFIXED32])
+		service = PBServiceField.new()
+		service.field = __sfixed32_val
+		data[__sfixed32_val.tag] = service
+		
+		__sfixed64_val = PBField.new("sfixed64_val", PB_DATA_TYPE.SFIXED64, PB_RULE.OPTIONAL, 12, true, DEFAULT_VALUES_3[PB_DATA_TYPE.SFIXED64])
+		service = PBServiceField.new()
+		service.field = __sfixed64_val
+		data[__sfixed64_val.tag] = service
+		
+		__bool_val = PBField.new("bool_val", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 13, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL])
+		service = PBServiceField.new()
+		service.field = __bool_val
+		data[__bool_val.tag] = service
+		
+		__string_val = PBField.new("string_val", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 14, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __string_val
+		data[__string_val.tag] = service
+		
+		__bytes_val = PBField.new("bytes_val", PB_DATA_TYPE.BYTES, PB_RULE.OPTIONAL, 15, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BYTES])
+		service = PBServiceField.new()
+		service.field = __bytes_val
+		data[__bytes_val.tag] = service
+		
+		__class = PBField.new("class", PB_DATA_TYPE.ENUM, PB_RULE.OPTIONAL, 16, true, DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM])
 		service = PBServiceField.new()
 		service.field = __class
 		data[__class.tag] = service
 		
-	var data = {}
+		var __items_default: Array[String] = []
+		__items = PBField.new("items", PB_DATA_TYPE.STRING, PB_RULE.REPEATED, 17, true, __items_default)
+		service = PBServiceField.new()
+		service.field = __items
+		data[__items.tag] = service
+		
+		__email = PBField.new("email", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 18, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		service = PBServiceField.new()
+		service.field = __email
+		data[__email.tag] = service
+		
+		__phone = PBField.new("phone", PB_DATA_TYPE.INT64, PB_RULE.OPTIONAL, 19, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT64])
+		service = PBServiceField.new()
+		service.field = __phone
+		data[__phone.tag] = service
+		
+		__stats = PBField.new("stats", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 20, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		service = PBServiceField.new()
+		service.field = __stats
+		service.func_ref = Callable(self, "new_stats")
+		data[__stats.tag] = service
+		
+		var __history_default: Array[Player.Stats] = []
+		__history = PBField.new("history", PB_DATA_TYPE.MESSAGE, PB_RULE.REPEATED, 21, true, __history_default)
+		service = PBServiceField.new()
+		service.field = __history
+		service.func_ref = Callable(self, "add_history")
+		data[__history.tag] = service
+		
+		var __metadata_default: Array = []
+		__metadata = PBField.new("metadata", PB_DATA_TYPE.MAP, PB_RULE.REPEATED, 22, true, __metadata_default)
+		service = PBServiceField.new()
+		service.field = __metadata
+		service.func_ref = Callable(self, "add_empty_metadata")
+		data[__metadata.tag] = service
+		
+		var __labels_default: Array = []
+		__labels = PBField.new("labels", PB_DATA_TYPE.MAP, PB_RULE.REPEATED, 23, true, __labels_default)
+		service = PBServiceField.new()
+		service.field = __labels
+		service.func_ref = Callable(self, "add_empty_labels")
+		data[__labels.tag] = service
+		
+		var __skills_default: Array = []
+		__skills = PBField.new("skills", PB_DATA_TYPE.MAP, PB_RULE.REPEATED, 24, true, __skills_default)
+		service = PBServiceField.new()
+		service.field = __skills
+		service.func_ref = Callable(self, "add_empty_skills")
+		data[__skills.tag] = service
+		
+	var data: Dictionary = {}
 	
-	var __name: PBField
-	func has_name() -> bool:
-		if __name.value != null:
+	enum ContactCase {
+		CONTACT_NOT_SET = 0,
+		EMAIL = 18,
+		PHONE = 19,
+	}
+	var _contact_case: int = 0
+
+	var __double_val: PBField
+	func has_double_val() -> bool:
+		if __double_val.value != null:
 			return true
 		return false
-	func get_name() -> String:
-		return __name.value
-	func clear_name() -> void:
+	func get_double_val() -> float:
+		return __double_val.value
+	func clear_double_val() -> void:
 		data[1].state = PB_SERVICE_STATE.UNFILLED
-		__name.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
-	func set_name(value : String) -> void:
-		__name.value = value
+		__double_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.DOUBLE]
+	func set_double_val(value : float) -> void:
+		__double_val.value = value
 	
-	var __level: PBField
-	func has_level() -> bool:
-		if __level.value != null:
+	var __float_val: PBField
+	func has_float_val() -> bool:
+		if __float_val.value != null:
 			return true
 		return false
-	func get_level() -> int:
-		return __level.value
-	func clear_level() -> void:
+	func get_float_val() -> float:
+		return __float_val.value
+	func clear_float_val() -> void:
 		data[2].state = PB_SERVICE_STATE.UNFILLED
-		__level.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
-	func set_level(value : int) -> void:
-		__level.value = value
+		__float_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+	func set_float_val(value : float) -> void:
+		__float_val.value = value
 	
-	var __health: PBField
-	func has_health() -> bool:
-		if __health.value != null:
+	var __int32_val: PBField
+	func has_int32_val() -> bool:
+		if __int32_val.value != null:
 			return true
 		return false
-	func get_health() -> int:
-		return __health.value
-	func clear_health() -> void:
+	func get_int32_val() -> int:
+		return __int32_val.value
+	func clear_int32_val() -> void:
 		data[3].state = PB_SERVICE_STATE.UNFILLED
-		__health.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
-	func set_health(value : int) -> void:
-		__health.value = value
+		__int32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
+	func set_int32_val(value : int) -> void:
+		__int32_val.value = value
 	
-	var __mana: PBField
-	func has_mana() -> bool:
-		if __mana.value != null:
+	var __int64_val: PBField
+	func has_int64_val() -> bool:
+		if __int64_val.value != null:
 			return true
 		return false
-	func get_mana() -> int:
-		return __mana.value
-	func clear_mana() -> void:
+	func get_int64_val() -> int:
+		return __int64_val.value
+	func clear_int64_val() -> void:
 		data[4].state = PB_SERVICE_STATE.UNFILLED
-		__mana.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
-	func set_mana(value : int) -> void:
-		__mana.value = value
+		__int64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT64]
+	func set_int64_val(value : int) -> void:
+		__int64_val.value = value
 	
-	var __items: PBField
-	func get_items() -> Array[String]:
-		return __items.value
-	func clear_items() -> void:
+	var __uint32_val: PBField
+	func has_uint32_val() -> bool:
+		if __uint32_val.value != null:
+			return true
+		return false
+	func get_uint32_val() -> int:
+		return __uint32_val.value
+	func clear_uint32_val() -> void:
 		data[5].state = PB_SERVICE_STATE.UNFILLED
-		__items.value.clear()
-	func add_items(value : String) -> void:
-		__items.value.append(value)
+		__uint32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT32]
+	func set_uint32_val(value : int) -> void:
+		__uint32_val.value = value
+	
+	var __uint64_val: PBField
+	func has_uint64_val() -> bool:
+		if __uint64_val.value != null:
+			return true
+		return false
+	func get_uint64_val() -> int:
+		return __uint64_val.value
+	func clear_uint64_val() -> void:
+		data[6].state = PB_SERVICE_STATE.UNFILLED
+		__uint64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.UINT64]
+	func set_uint64_val(value : int) -> void:
+		__uint64_val.value = value
+	
+	var __sint32_val: PBField
+	func has_sint32_val() -> bool:
+		if __sint32_val.value != null:
+			return true
+		return false
+	func get_sint32_val() -> int:
+		return __sint32_val.value
+	func clear_sint32_val() -> void:
+		data[7].state = PB_SERVICE_STATE.UNFILLED
+		__sint32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.SINT32]
+	func set_sint32_val(value : int) -> void:
+		__sint32_val.value = value
+	
+	var __sint64_val: PBField
+	func has_sint64_val() -> bool:
+		if __sint64_val.value != null:
+			return true
+		return false
+	func get_sint64_val() -> int:
+		return __sint64_val.value
+	func clear_sint64_val() -> void:
+		data[8].state = PB_SERVICE_STATE.UNFILLED
+		__sint64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.SINT64]
+	func set_sint64_val(value : int) -> void:
+		__sint64_val.value = value
+	
+	var __fixed32_val: PBField
+	func has_fixed32_val() -> bool:
+		if __fixed32_val.value != null:
+			return true
+		return false
+	func get_fixed32_val() -> int:
+		return __fixed32_val.value
+	func clear_fixed32_val() -> void:
+		data[9].state = PB_SERVICE_STATE.UNFILLED
+		__fixed32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FIXED32]
+	func set_fixed32_val(value : int) -> void:
+		__fixed32_val.value = value
+	
+	var __fixed64_val: PBField
+	func has_fixed64_val() -> bool:
+		if __fixed64_val.value != null:
+			return true
+		return false
+	func get_fixed64_val() -> int:
+		return __fixed64_val.value
+	func clear_fixed64_val() -> void:
+		data[10].state = PB_SERVICE_STATE.UNFILLED
+		__fixed64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FIXED64]
+	func set_fixed64_val(value : int) -> void:
+		__fixed64_val.value = value
+	
+	var __sfixed32_val: PBField
+	func has_sfixed32_val() -> bool:
+		if __sfixed32_val.value != null:
+			return true
+		return false
+	func get_sfixed32_val() -> int:
+		return __sfixed32_val.value
+	func clear_sfixed32_val() -> void:
+		data[11].state = PB_SERVICE_STATE.UNFILLED
+		__sfixed32_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.SFIXED32]
+	func set_sfixed32_val(value : int) -> void:
+		__sfixed32_val.value = value
+	
+	var __sfixed64_val: PBField
+	func has_sfixed64_val() -> bool:
+		if __sfixed64_val.value != null:
+			return true
+		return false
+	func get_sfixed64_val() -> int:
+		return __sfixed64_val.value
+	func clear_sfixed64_val() -> void:
+		data[12].state = PB_SERVICE_STATE.UNFILLED
+		__sfixed64_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.SFIXED64]
+	func set_sfixed64_val(value : int) -> void:
+		__sfixed64_val.value = value
+	
+	var __bool_val: PBField
+	func has_bool_val() -> bool:
+		if __bool_val.value != null:
+			return true
+		return false
+	func get_bool_val() -> bool:
+		return __bool_val.value
+	func clear_bool_val() -> void:
+		data[13].state = PB_SERVICE_STATE.UNFILLED
+		__bool_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
+	func set_bool_val(value : bool) -> void:
+		__bool_val.value = value
+	
+	var __string_val: PBField
+	func has_string_val() -> bool:
+		if __string_val.value != null:
+			return true
+		return false
+	func get_string_val() -> String:
+		return __string_val.value
+	func clear_string_val() -> void:
+		data[14].state = PB_SERVICE_STATE.UNFILLED
+		__string_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_string_val(value : String) -> void:
+		__string_val.value = value
+	
+	var __bytes_val: PBField
+	func has_bytes_val() -> bool:
+		if __bytes_val.value != null:
+			return true
+		return false
+	func get_bytes_val() -> PackedByteArray:
+		return __bytes_val.value
+	func clear_bytes_val() -> void:
+		data[15].state = PB_SERVICE_STATE.UNFILLED
+		__bytes_val.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BYTES]
+	func set_bytes_val(value : PackedByteArray) -> void:
+		__bytes_val.value = value
 	
 	var __class: PBField
 	func has_class() -> bool:
 		if __class.value != null:
 			return true
 		return false
-	func get_class():
+	func get_class_() -> int:
 		return __class.value
 	func clear_class() -> void:
-		data[6].state = PB_SERVICE_STATE.UNFILLED
+		data[16].state = PB_SERVICE_STATE.UNFILLED
 		__class.value = DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM]
-	func set_class(value) -> void:
+	func set_class(value : int) -> void:
 		__class.value = value
 	
+	var __items: PBField
+	func get_items() -> Array[String]:
+		return __items.value
+	func clear_items() -> void:
+		data[17].state = PB_SERVICE_STATE.UNFILLED
+		__items.clear_array()
+	func add_items(value : String) -> void:
+		__items.append_array(value)
+	
+	var __email: PBField
+	func has_email() -> bool:
+		return data[18].state == PB_SERVICE_STATE.FILLED
+	func get_email() -> String:
+		return __email.value
+	func clear_email() -> void:
+		data[18].state = PB_SERVICE_STATE.UNFILLED
+		_contact_case = 0
+		__email.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+	func set_email(value : String) -> void:
+		data[18].state = PB_SERVICE_STATE.FILLED
+		_contact_case = 18
+		__phone.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT64]
+		data[19].state = PB_SERVICE_STATE.UNFILLED
+		__email.value = value
+	
+	var __phone: PBField
+	func has_phone() -> bool:
+		return data[19].state == PB_SERVICE_STATE.FILLED
+	func get_phone() -> int:
+		return __phone.value
+	func clear_phone() -> void:
+		data[19].state = PB_SERVICE_STATE.UNFILLED
+		_contact_case = 0
+		__phone.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT64]
+	func set_phone(value : int) -> void:
+		__email.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+		data[18].state = PB_SERVICE_STATE.UNFILLED
+		data[19].state = PB_SERVICE_STATE.FILLED
+		_contact_case = 19
+		__phone.value = value
+	
+	var __stats: PBField
+	func has_stats() -> bool:
+		if __stats.value != null:
+			return true
+		return false
+	func get_stats() -> Player.Stats:
+		return __stats.value
+	func clear_stats() -> void:
+		data[20].state = PB_SERVICE_STATE.UNFILLED
+		__stats.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+	func new_stats() -> Player.Stats:
+		__stats.value = Player.Stats.new()
+		return __stats.value
+	
+	var __history: PBField
+	func get_history() -> Array[Player.Stats]:
+		return __history.value
+	func clear_history() -> void:
+		data[21].state = PB_SERVICE_STATE.UNFILLED
+		__history.clear_array()
+	func add_history() -> Player.Stats:
+		var element: Player.Stats = Player.Stats.new()
+		__history.append_array(element)
+		return element
+	
+	var __metadata: PBField
+	func get_raw_metadata() -> Variant:
+		return __metadata.value
+	func get_metadata() -> Dictionary:
+		return PBPacker.construct_map(__metadata.as_array())
+	func clear_metadata() -> void:
+		data[22].state = PB_SERVICE_STATE.UNFILLED
+		__metadata.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MAP]
+	func add_empty_metadata() -> Player.map_type_metadata:
+		var element: Player.map_type_metadata = Player.map_type_metadata.new()
+		__metadata.append_array(element)
+		return element
+	func add_metadata(a_key: String, a_value: String) -> void:
+		var idx: int = __metadata.find_map_index(a_key)
+		var element: Player.map_type_metadata = Player.map_type_metadata.new()
+		element.set_key(a_key)
+		element.set_value(a_value)
+		if idx != -1:
+			__metadata.set_map_element(idx, element)
+		else:
+			__metadata.append_array(element)
+	
+	var __labels: PBField
+	func get_raw_labels() -> Variant:
+		return __labels.value
+	func get_labels() -> Dictionary:
+		return PBPacker.construct_map(__labels.as_array())
+	func clear_labels() -> void:
+		data[23].state = PB_SERVICE_STATE.UNFILLED
+		__labels.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MAP]
+	func add_empty_labels() -> Player.map_type_labels:
+		var element: Player.map_type_labels = Player.map_type_labels.new()
+		__labels.append_array(element)
+		return element
+	func add_labels(a_key: int, a_value: String) -> void:
+		var idx: int = __labels.find_map_index(a_key)
+		var element: Player.map_type_labels = Player.map_type_labels.new()
+		element.set_key(a_key)
+		element.set_value(a_value)
+		if idx != -1:
+			__labels.set_map_element(idx, element)
+		else:
+			__labels.append_array(element)
+	
+	var __skills: PBField
+	func get_raw_skills() -> Variant:
+		return __skills.value
+	func get_skills() -> Dictionary:
+		return PBPacker.construct_map(__skills.as_array())
+	func clear_skills() -> void:
+		data[24].state = PB_SERVICE_STATE.UNFILLED
+		__skills.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MAP]
+	func add_empty_skills() -> Player.map_type_skills:
+		var element: Player.map_type_skills = Player.map_type_skills.new()
+		__skills.append_array(element)
+		return element
+	func add_skills(a_key: String, a_value: int) -> void:
+		var idx: int = __skills.find_map_index(a_key)
+		var element: Player.map_type_skills = Player.map_type_skills.new()
+		element.set_key(a_key)
+		element.set_value(a_value)
+		if idx != -1:
+			__skills.set_map_element(idx, element)
+		else:
+			__skills.append_array(element)
+	
+	func get_contact_case() -> int:
+		return _contact_case
 	enum Class {
 		UNKNOWN = 0,
 		WARRIOR = 1,
@@ -803,6 +1201,293 @@ class Player:
 		CLERIC = 4
 	}
 	
+	class Stats:
+		extends RefCounted
+		func _init() -> void:
+			var service: PBServiceField
+			
+			__strength = PBField.new("strength", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
+			service = PBServiceField.new()
+			service.field = __strength
+			data[__strength.tag] = service
+			
+			__agility = PBField.new("agility", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
+			service = PBServiceField.new()
+			service.field = __agility
+			data[__agility.tag] = service
+			
+			__intelligence = PBField.new("intelligence", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
+			service = PBServiceField.new()
+			service.field = __intelligence
+			data[__intelligence.tag] = service
+			
+		var data: Dictionary = {}
+		
+		var __strength: PBField
+		func has_strength() -> bool:
+			if __strength.value != null:
+				return true
+			return false
+		func get_strength() -> int:
+			return __strength.value
+		func clear_strength() -> void:
+			data[1].state = PB_SERVICE_STATE.UNFILLED
+			__strength.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
+		func set_strength(value : int) -> void:
+			__strength.value = value
+		
+		var __agility: PBField
+		func has_agility() -> bool:
+			if __agility.value != null:
+				return true
+			return false
+		func get_agility() -> int:
+			return __agility.value
+		func clear_agility() -> void:
+			data[2].state = PB_SERVICE_STATE.UNFILLED
+			__agility.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
+		func set_agility(value : int) -> void:
+			__agility.value = value
+		
+		var __intelligence: PBField
+		func has_intelligence() -> bool:
+			if __intelligence.value != null:
+				return true
+			return false
+		func get_intelligence() -> int:
+			return __intelligence.value
+		func clear_intelligence() -> void:
+			data[3].state = PB_SERVICE_STATE.UNFILLED
+			__intelligence.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
+		func set_intelligence(value : int) -> void:
+			__intelligence.value = value
+		
+		func _to_string() -> String:
+			return PBPacker.message_to_string(data)
+			
+		func to_bytes() -> PackedByteArray:
+			return PBPacker.pack_message(data)
+			
+		func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+			var cur_limit: int = bytes.size()
+			if limit != -1:
+				cur_limit = limit
+			var result: int = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+			if result == cur_limit:
+				if PBPacker.check_required(data):
+					if limit == -1:
+						return PB_ERR.NO_ERRORS
+				else:
+					return PB_ERR.REQUIRED_FIELDS
+			elif limit == -1 && result > 0:
+				return PB_ERR.PARSE_INCOMPLETE
+			return result
+		
+	class map_type_metadata:
+		extends RefCounted
+		func _init() -> void:
+			var service: PBServiceField
+			
+			__key = PBField.new("key", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+			__key.is_map_field = true
+			service = PBServiceField.new()
+			service.field = __key
+			data[__key.tag] = service
+			
+			__value = PBField.new("value", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+			__value.is_map_field = true
+			service = PBServiceField.new()
+			service.field = __value
+			data[__value.tag] = service
+			
+		var data: Dictionary = {}
+		
+		var __key: PBField
+		func has_key() -> bool:
+			if __key.value != null:
+				return true
+			return false
+		func get_key() -> String:
+			return __key.value
+		func clear_key() -> void:
+			data[1].state = PB_SERVICE_STATE.UNFILLED
+			__key.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+		func set_key(value : String) -> void:
+			__key.value = value
+		
+		var __value: PBField
+		func has_value() -> bool:
+			if __value.value != null:
+				return true
+			return false
+		func get_value() -> String:
+			return __value.value
+		func clear_value() -> void:
+			data[2].state = PB_SERVICE_STATE.UNFILLED
+			__value.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+		func set_value(value : String) -> void:
+			__value.value = value
+		
+		func _to_string() -> String:
+			return PBPacker.message_to_string(data)
+			
+		func to_bytes() -> PackedByteArray:
+			return PBPacker.pack_message(data)
+			
+		func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+			var cur_limit: int = bytes.size()
+			if limit != -1:
+				cur_limit = limit
+			var result: int = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+			if result == cur_limit:
+				if PBPacker.check_required(data):
+					if limit == -1:
+						return PB_ERR.NO_ERRORS
+				else:
+					return PB_ERR.REQUIRED_FIELDS
+			elif limit == -1 && result > 0:
+				return PB_ERR.PARSE_INCOMPLETE
+			return result
+		
+	class map_type_labels:
+		extends RefCounted
+		func _init() -> void:
+			var service: PBServiceField
+			
+			__key = PBField.new("key", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
+			__key.is_map_field = true
+			service = PBServiceField.new()
+			service.field = __key
+			data[__key.tag] = service
+			
+			__value = PBField.new("value", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+			__value.is_map_field = true
+			service = PBServiceField.new()
+			service.field = __value
+			data[__value.tag] = service
+			
+		var data: Dictionary = {}
+		
+		var __key: PBField
+		func has_key() -> bool:
+			if __key.value != null:
+				return true
+			return false
+		func get_key() -> int:
+			return __key.value
+		func clear_key() -> void:
+			data[1].state = PB_SERVICE_STATE.UNFILLED
+			__key.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
+		func set_key(value : int) -> void:
+			__key.value = value
+		
+		var __value: PBField
+		func has_value() -> bool:
+			if __value.value != null:
+				return true
+			return false
+		func get_value() -> String:
+			return __value.value
+		func clear_value() -> void:
+			data[2].state = PB_SERVICE_STATE.UNFILLED
+			__value.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+		func set_value(value : String) -> void:
+			__value.value = value
+		
+		func _to_string() -> String:
+			return PBPacker.message_to_string(data)
+			
+		func to_bytes() -> PackedByteArray:
+			return PBPacker.pack_message(data)
+			
+		func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+			var cur_limit: int = bytes.size()
+			if limit != -1:
+				cur_limit = limit
+			var result: int = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+			if result == cur_limit:
+				if PBPacker.check_required(data):
+					if limit == -1:
+						return PB_ERR.NO_ERRORS
+				else:
+					return PB_ERR.REQUIRED_FIELDS
+			elif limit == -1 && result > 0:
+				return PB_ERR.PARSE_INCOMPLETE
+			return result
+		
+	enum Skill {
+		NONE = 0,
+		FIRE = 1,
+		ICE = 2,
+		LIGHTNING = 3
+	}
+	
+	class map_type_skills:
+		extends RefCounted
+		func _init() -> void:
+			var service: PBServiceField
+			
+			__key = PBField.new("key", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+			__key.is_map_field = true
+			service = PBServiceField.new()
+			service.field = __key
+			data[__key.tag] = service
+			
+			__value = PBField.new("value", PB_DATA_TYPE.ENUM, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM])
+			__value.is_map_field = true
+			service = PBServiceField.new()
+			service.field = __value
+			data[__value.tag] = service
+			
+		var data: Dictionary = {}
+		
+		var __key: PBField
+		func has_key() -> bool:
+			if __key.value != null:
+				return true
+			return false
+		func get_key() -> String:
+			return __key.value
+		func clear_key() -> void:
+			data[1].state = PB_SERVICE_STATE.UNFILLED
+			__key.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+		func set_key(value : String) -> void:
+			__key.value = value
+		
+		var __value: PBField
+		func has_value() -> bool:
+			if __value.value != null:
+				return true
+			return false
+		func get_value() -> int:
+			return __value.value
+		func clear_value() -> void:
+			data[2].state = PB_SERVICE_STATE.UNFILLED
+			__value.value = DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM]
+		func set_value(value : int) -> void:
+			__value.value = value
+		
+		func _to_string() -> String:
+			return PBPacker.message_to_string(data)
+			
+		func to_bytes() -> PackedByteArray:
+			return PBPacker.pack_message(data)
+			
+		func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
+			var cur_limit: int = bytes.size()
+			if limit != -1:
+				cur_limit = limit
+			var result: int = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+			if result == cur_limit:
+				if PBPacker.check_required(data):
+					if limit == -1:
+						return PB_ERR.NO_ERRORS
+				else:
+					return PB_ERR.REQUIRED_FIELDS
+			elif limit == -1 && result > 0:
+				return PB_ERR.PARSE_INCOMPLETE
+			return result
+		
 	func _to_string() -> String:
 		return PBPacker.message_to_string(data)
 		
@@ -810,10 +1495,10 @@ class Player:
 		return PBPacker.pack_message(data)
 		
 	func from_bytes(bytes : PackedByteArray, offset : int = 0, limit : int = -1) -> int:
-		var cur_limit = bytes.size()
+		var cur_limit: int = bytes.size()
 		if limit != -1:
 			cur_limit = limit
-		var result = PBPacker.unpack_message(data, bytes, offset, cur_limit)
+		var result: int = PBPacker.unpack_message(data, bytes, offset, cur_limit)
 		if result == cur_limit:
 			if PBPacker.check_required(data):
 				if limit == -1:
