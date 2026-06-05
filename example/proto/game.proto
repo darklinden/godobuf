@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package example;
+
+import "player.proto";
+
+message Game {
+  string id = 1;
+  repeated Player players = 2;
+  int32 max_players = 3;
+  bool started = 4;
+
+  enum State {
+    UNKNOWN = 0;
+    LOBBY = 1;
+    IN_PROGRESS = 2;
+    FINISHED = 3;
+  }
+  State state = 5;
+}
