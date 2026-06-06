@@ -31,9 +31,8 @@
 
 # DEBUG_TAB redefine this "  " if you need, example: const DEBUG_TAB = "\t"
 
-const PROTO_VERSION: int = 0
-
 const DEBUG_TAB : String = "  "
+
 
 enum PB_ERR {
 	NO_ERRORS = 0,
@@ -282,7 +281,7 @@ class PBPacker:
 		return result
 
 
-	static func pack_field(field : PBField) -> PackedByteArray:
+	static func pack_field(field : PBField, proto_version: int) -> PackedByteArray:
 		var type : int = field.wire_type
 		var type_copy : int = type
 		if field.rule == PB_RULE.REPEATED && field.option_packed:
@@ -359,11 +358,11 @@ class PBPacker:
 			else:
 				if field.type == PB_DATA_TYPE.STRING:
 					var str_bytes : PackedByteArray = field.value.to_utf8_buffer()
-					if PROTO_VERSION == 2 || (PROTO_VERSION == 3 && str_bytes.size() > 0):
+					if proto_version == 2 || (proto_version == 3 && str_bytes.size() > 0):
 						data.append_array(str_bytes)
 						return pack_length_delimeted(type, field.tag, data)
 				if field.type == PB_DATA_TYPE.BYTES:
-					if PROTO_VERSION == 2 || (PROTO_VERSION == 3 && field.value.size() > 0):
+					if proto_version == 2 || (proto_version == 3 && field.value.size() > 0):
 						data.append_array(field.value)
 						return pack_length_delimeted(type, field.tag, data)
 				elif typeof(field.value) == TYPE_OBJECT:
@@ -555,7 +554,7 @@ class PBPacker:
 				return offset
 		return PB_ERR.UNDEFINED_STATE
 
-	static func pack_message(data: Dictionary) -> PackedByteArray:
+	static func pack_message(data: Dictionary, proto_version: int) -> PackedByteArray:
 		var result : PackedByteArray = PackedByteArray()
 		var keys : Array = data.keys()
 		keys.sort()
@@ -567,7 +566,7 @@ class PBPacker:
 					continue
 				elif data[i].field.rule == PB_RULE.REPEATED && data[i].field.value.size() == 0:
 					continue
-				result.append_array(pack_field(data[i].field))
+				result.append_array(pack_field(data[i].field, proto_version))
 			elif data[i].field.rule == PB_RULE.REQUIRED:
 				print("Error: required field is not filled: Tag:", data[i].field.tag)
 				return PackedByteArray()

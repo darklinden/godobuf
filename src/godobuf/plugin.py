@@ -8,7 +8,6 @@ from google.protobuf.compiler.plugin_pb2 import (
 )
 from google.protobuf.descriptor_pb2 import FileDescriptorProto
 
-from .core_template import prepare_core
 from .generator import Generator, build_type_map
 
 
@@ -16,25 +15,6 @@ def _syntax_to_version(fd: FileDescriptorProto) -> int:
     if fd.syntax == "proto2":
         return 2
     return 3
-
-
-def _load_core_text() -> str:
-    """Read godobuf_core.gd from the package data directory."""
-    import os
-    # Try relative to this file first
-    here = os.path.dirname(os.path.abspath(__file__))
-    # Look in package dir (always takes precedence)
-    candidate = os.path.join(here, "godobuf_core.gd")
-    if os.path.isfile(candidate):
-        return _read_file(candidate)
-    raise FileNotFoundError(
-        "godobuf_core.gd not found. Pass --core_file via --gd_opt=core_file=..."
-    )
-
-
-def _read_file(path: str) -> str:
-    with open(path, "r", encoding="utf-8") as f:
-        return f.read()
 
 
 def main() -> None:
@@ -56,14 +36,16 @@ def main() -> None:
     prefix = params.get("prefix", "")
     should_prefix_enums = params.get("should_prefix_enums", "false").lower() == "true"
     custom_class_name = params.get("class_name", "")
-    should_add_wia = params.get("warning_ignore", "false").lower() == "true"
-    core_file = params.get("core_file", "")
+    # core_file now specifies the preload path for godobuf_core.gd in the Godot project
+    core_path = params.get("core_file", "res://addons/godobuf/godobuf_core.gd")
 
-    # Load core template
-    if core_file:
-        core_text = _read_file(core_file)
-    else:
-        core_text = _load_core_text()
+    # Deprecated: warning_ignore annotations now live on godobuf_core.gd itself
+    if "warning_ignore" in params:
+        print(
+            "godobuf: --gd_opt=warning_ignore is deprecated and has no effect. "
+            "Warning suppression annotations are now baked into godobuf_core.gd.",
+            file=sys.stderr,
+        )
 
     # Collect all file descriptors
     all_fds: list[FileDescriptorProto] = []
@@ -87,20 +69,16 @@ def main() -> None:
             sys.exit(1)
 
         proto_version = _syntax_to_version(fd)
-        gen = Generator(fd, type_map, proto_version, prefix, should_prefix_enums)
+        gen = Generator(fd, type_map, proto_version, prefix,
+                        should_prefix_enums, core_path)
 
-        # Generate user classes/enums section
+        # Generate user classes/enums section (includes core preload + PROTO_VERSION)
         user_code = gen.generate()
 
-        # Prepend core template and wrap with markers
-        output = prepare_core(core_text, proto_version,
-                              should_add_wia, custom_class_name)
-        output += "\n\n\n"
-        output += "############### USER DATA BEGIN ################\n"
-        output += "\n\n"
+        output = ""
+        if custom_class_name:
+            output += "class_name " + custom_class_name + "\n\n"
         output += user_code
-        output += "\t\n"
-        output += "################ USER DATA END #################\n"
 
         # Determine output file name
         base = file_name.rsplit(".", 1)[0] if "." in file_name else file_name

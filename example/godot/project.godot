@@ -58,4 +58,4 @@ gdscript/warnings/confusable_capture_reassignment=2
 
 [editor_plugins]
 
-enabled=PackedStringArray("res://addons/gut/plugin.cfg")
+enabled=PackedStringArray("res://addons/gut/plugin.cfg", "res://addons/godobuf/plugin.cfg")

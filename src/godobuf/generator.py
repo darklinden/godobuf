@@ -5,6 +5,14 @@ from google.protobuf.descriptor_pb2 import (
     FileDescriptorProto,
 )
 
+# Prefix for references to the shared core library loaded via preload
+CORE_PREFIX = "_C."
+
+
+def _c(symbol: str) -> str:
+    """Prefix a core symbol for GDScript output, e.g. _c("PBField") -> "_C.PBField"."""
+    return CORE_PREFIX + symbol
+
 ONE_OF_CASE_FUNCTION_SUFFIX = "_case"
 ONE_OF_CASE_ENUM_FIELD_SUFFIX = "Case"
 ONE_OF_CASE_INNER_FIELD_SUFFIX = "_case"
@@ -240,12 +248,14 @@ class Generator:
                  type_map: dict[str, TypeInfo],
                  proto_version: int,
                  prefix: str = "",
-                 should_prefix_enums: bool = False):
+                 should_prefix_enums: bool = False,
+                 core_path: str = "res://addons/godobuf/godobuf_core.gd"):
         self.fd = file_desc
         self.type_map = type_map
         self.proto_version = proto_version
         self.prefix = prefix
         self.should_prefix_enums = should_prefix_enums
+        self.core_path = core_path
         self._source_lines: dict[tuple, int] = self._build_source_lines()
 
     def _build_source_lines(self) -> dict[tuple, int]:
@@ -296,6 +306,11 @@ class Generator:
     def generate(self) -> str:
         """Generate the user-data section (classes + enums) for this file."""
         parts = []
+
+        # Core library preload
+        parts.append(f'const {CORE_PREFIX[:-1]} = preload("{self.core_path}")\n')
+        parts.append(f"const PROTO_VERSION: int = {self.proto_version}\n")
+        parts.append("\n")
 
         # Collect external file preloads needed by all top-level messages
         external_preloads: dict[str, str] = {}
@@ -376,7 +391,7 @@ class Generator:
         text += _tab("extends RefCounted\n", nesting)
         text += _tab("func _init() -> void:\n", nesting)
         nesting += 1
-        text += _tab("var service: PBServiceField\n", nesting)
+        text += _tab(f"var service: {_c('PBServiceField')}\n", nesting)
         text += _tab("\n", nesting)
 
         # Map entry → field name and field index lookup
@@ -493,7 +508,7 @@ class Generator:
 
         is_map = self._is_map_field(field)
         pb_type_str = "PB_DATA_TYPE.MAP" if is_map else _pb_type(field)
-        pb = f'{fname} = PBField.new("{field.name}", {pb_type_str}, {_pb_rule(field)}, {field.number}, {self._packed()}'
+        pb = f'{fname} = {_c("PBField")}.new("{field.name}", {_c(pb_type_str)}, {_c(_pb_rule(field))}, {field.number}, {self._packed()}'
 
         default_var = f"{fname}_default"
         is_repeated = field.label == FieldDescriptorProto.LABEL_REPEATED
@@ -520,7 +535,7 @@ class Generator:
         text += _tab(pb, nesting)
         if is_map:
             text += _tab(f"{fname}.is_map_field = true\n", nesting)
-        text += _tab("service = PBServiceField.new()\n", nesting)
+        text += _tab(f"service = {_c('PBServiceField')}.new()\n", nesting)
         text += _tab("service.field = " + fname + "\n", nesting)
 
         if is_msg and not is_map:
@@ -569,12 +584,12 @@ class Generator:
         at = f" : {gd}" if gd else ""
         text = ""
 
-        text += _tab(f"var {vn}: PBField\n", nesting)
+        text += _tab(f"var {vn}: {_c('PBField')}\n", nesting)
 
         if field.label != FieldDescriptorProto.LABEL_REPEATED:
             text += _tab(f"func has_{field.name}() -> bool:\n", nesting)
             nesting += 1
-            text += _tab(f"return data[{field.number}].state == PB_SERVICE_STATE.FILLED\n", nesting)
+            text += _tab(f"return data[{field.number}].state == {_c('PB_SERVICE_STATE')}.FILLED\n", nesting)
             nesting -= 1
 
         suffix = _getter_suffix(field.name)
@@ -587,7 +602,7 @@ class Generator:
 
             text += _tab(f"func clear_{field.name}() -> void:\n", nesting)
             nesting += 1
-            text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
+            text += _tab(f"data[{field.number}].state = {_c('PB_SERVICE_STATE')}.UNFILLED\n", nesting)
             text += _tab(f"{vn}.clear_array()\n", nesting)
             nesting -= 1
 
@@ -602,7 +617,7 @@ class Generator:
 
             text += _tab(f"func clear_{field.name}() -> void:\n", nesting)
             nesting += 1
-            text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
+            text += _tab(f"data[{field.number}].state = {_c('PB_SERVICE_STATE')}.UNFILLED\n", nesting)
             if in_oneof:
                 text += _tab(f"_{oneof_name}_case = {ONE_OF_CASE_DEFAULT_VALUE}\n", nesting)
             text += _tab(f"{vn}.value = {_default_literal(self.proto_version, field)}\n", nesting)
@@ -613,7 +628,7 @@ class Generator:
             if in_oneof:
                 text += self._gen_oneof_set(field, siblings, oneof_name, nesting)
             else:
-                text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.FILLED\n", nesting)
+                text += _tab(f"data[{field.number}].state = {_c('PB_SERVICE_STATE')}.FILLED\n", nesting)
             text += _tab(f"{vn}.value = value\n", nesting)
 
         return text
@@ -625,13 +640,13 @@ class Generator:
         type_name = self._resolve(field.type_name)
         text = ""
 
-        text += _tab(f"var {vn}: PBField\n", nesting)
+        text += _tab(f"var {vn}: {_c('PBField')}\n", nesting)
 
         if field.label != FieldDescriptorProto.LABEL_REPEATED:
             if in_oneof:
                 text += _tab(f"func has_{field.name}() -> bool:\n", nesting)
                 nesting += 1
-                text += _tab(f"return data[{field.number}].state == PB_SERVICE_STATE.FILLED\n", nesting)
+                text += _tab(f"return data[{field.number}].state == {_c('PB_SERVICE_STATE')}.FILLED\n", nesting)
                 nesting -= 1
             else:
                 text += _tab(f"func has_{field.name}() -> bool:\n", nesting)
@@ -652,7 +667,7 @@ class Generator:
 
             text += _tab(f"func clear_{field.name}() -> void:\n", nesting)
             nesting += 1
-            text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
+            text += _tab(f"data[{field.number}].state = {_c('PB_SERVICE_STATE')}.UNFILLED\n", nesting)
             text += _tab(f"{vn}.clear_array()\n", nesting)
             nesting -= 1
 
@@ -669,7 +684,7 @@ class Generator:
 
             text += _tab(f"func clear_{field.name}() -> void:\n", nesting)
             nesting += 1
-            text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
+            text += _tab(f"data[{field.number}].state = {_c('PB_SERVICE_STATE')}.UNFILLED\n", nesting)
             if in_oneof:
                 text += _tab(f"_{oneof_name}_case = {ONE_OF_CASE_DEFAULT_VALUE}\n", nesting)
             text += _tab(f"{vn}.value = {_default_literal(self.proto_version, field)}\n", nesting)
@@ -693,7 +708,7 @@ class Generator:
         text += _tab("extends RefCounted\n", nesting)
         text += _tab("func _init() -> void:\n", nesting)
         nesting += 1
-        text += _tab("var service: PBServiceField\n", nesting)
+        text += _tab(f"var service: {_c('PBServiceField')}\n", nesting)
         text += _tab("\n", nesting)
 
         for field in msg.field:
@@ -746,13 +761,13 @@ class Generator:
                     val_is_msg = True
                     val_msg_type = self._resolve(nested.type_name)
 
-        text += _tab(f"var {vn}: PBField\n", nesting)
+        text += _tab(f"var {vn}: {_c('PBField')}\n", nesting)
         text += _tab(f"var {vn}_cached: Dictionary = {{}}\n", nesting)
         text += _tab(f"var {vn}_cache_valid: bool = false\n", nesting)
         if in_oneof:
             text += _tab(f"func has_{field.name}() -> bool:\n", nesting)
             nesting += 1
-            text += _tab(f"return data[{field.number}].state == PB_SERVICE_STATE.FILLED\n", nesting)
+            text += _tab(f"return data[{field.number}].state == {_c('PB_SERVICE_STATE')}.FILLED\n", nesting)
             nesting -= 1
 
         # get_raw
@@ -767,7 +782,7 @@ class Generator:
         nesting += 1
         text += _tab(f"if not {vn}_cache_valid:\n", nesting)
         nesting += 1
-        text += _tab(f"{vn}_cached = PBPacker.construct_map({vn}.as_array())\n", nesting)
+        text += _tab(f"{vn}_cached = {_c('PBPacker')}.construct_map({vn}.as_array())\n", nesting)
         text += _tab(f"{vn}_cache_valid = true\n", nesting)
         nesting -= 1
         text += _tab(f"return {vn}_cached\n", nesting)
@@ -777,7 +792,7 @@ class Generator:
         text += _tab(f"func clear_{field.name}() -> void:\n", nesting)
         nesting += 1
         text += _tab(f"{vn}_cache_valid = false\n", nesting)
-        text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
+        text += _tab(f"data[{field.number}].state = {_c('PB_SERVICE_STATE')}.UNFILLED\n", nesting)
         text += _tab(f"{vn}.clear_array()\n", nesting)
         if in_oneof:
             text += _tab(f"_{oneof_name}_case = {ONE_OF_CASE_DEFAULT_VALUE}\n", nesting)
@@ -884,24 +899,24 @@ class Generator:
         all_fields.sort(key=lambda x: x[0])
         for _, field, is_own in all_fields:
             if is_own:
-                text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.FILLED\n", nesting)
+                text += _tab(f"data[{field.number}].state = {_c('PB_SERVICE_STATE')}.FILLED\n", nesting)
                 text += _tab(f"_{oneof_name}_case = {field.number}\n", nesting)
             else:
                 text += _tab(f"__{field.name}.value = {_default_literal(self.proto_version, field)}\n", nesting)
-                text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
+                text += _tab(f"data[{field.number}].state = {_c('PB_SERVICE_STATE')}.UNFILLED\n", nesting)
         return text
 
     def gen_class_services(self, nesting: int, msg=None) -> str:
         text = ""
         text += _tab("func _to_string() -> String:\n", nesting)
         nesting += 1
-        text += _tab("return PBPacker.message_to_string(data)\n", nesting)
+        text += _tab(f"return {_c('PBPacker')}.message_to_string(data)\n", nesting)
         text += _tab("\n", nesting)
         nesting -= 1
 
         text += _tab("func to_bytes() -> PackedByteArray:\n", nesting)
         nesting += 1
-        text += _tab("return PBPacker.pack_message(data)\n", nesting)
+        text += _tab(f"return {_c('PBPacker')}.pack_message(data, PROTO_VERSION)\n", nesting)
         text += _tab("\n", nesting)
         nesting -= 1
 
@@ -912,7 +927,7 @@ class Generator:
         nesting += 1
         text += _tab("cur_limit = limit\n", nesting)
         nesting -= 1
-        text += _tab("var result: int = PBPacker.unpack_message(data, bytes, offset, cur_limit)\n", nesting)
+        text += _tab(f"var result: int = {_c('PBPacker')}.unpack_message(data, bytes, offset, cur_limit)\n", nesting)
         text += _tab("if result == cur_limit:\n", nesting)
         nesting += 1
 
@@ -924,24 +939,24 @@ class Generator:
                 text += _tab(f"{case_var} = {ONE_OF_CASE_DEFAULT_VALUE}\n", nesting)
                 for field in msg.field:
                     if field.HasField("oneof_index") and field.oneof_index == oi:
-                        text += _tab(f"if data[{field.number}].state == PB_SERVICE_STATE.FILLED:\n", nesting)
+                        text += _tab(f"if data[{field.number}].state == {_c('PB_SERVICE_STATE')}.FILLED:\n", nesting)
                         nesting += 1
                         text += _tab(f"{case_var} = {field.number}\n", nesting)
                         nesting -= 1
 
-        text += _tab("if PBPacker.check_required(data):\n", nesting)
+        text += _tab(f"if {_c('PBPacker')}.check_required(data):\n", nesting)
         nesting += 1
         text += _tab("if limit == -1:\n", nesting)
         nesting += 1
-        text += _tab("return PB_ERR.NO_ERRORS\n", nesting)
+        text += _tab(f"return {_c('PB_ERR')}.NO_ERRORS\n", nesting)
         nesting -= 2
         text += _tab("else:\n", nesting)
         nesting += 1
-        text += _tab("return PB_ERR.REQUIRED_FIELDS\n", nesting)
+        text += _tab(f"return {_c('PB_ERR')}.REQUIRED_FIELDS\n", nesting)
         nesting -= 2
         text += _tab("elif limit == -1 && result > 0:\n", nesting)
         nesting += 1
-        text += _tab("return PB_ERR.PARSE_INCOMPLETE\n", nesting)
+        text += _tab(f"return {_c('PB_ERR')}.PARSE_INCOMPLETE\n", nesting)
         nesting -= 1
         text += _tab("return result\n", nesting)
         return text
