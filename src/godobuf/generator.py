@@ -29,7 +29,15 @@ _TYPE_TO_PB: dict[int, str] = {
     FieldDescriptorProto.TYPE_STRING: "PB_DATA_TYPE.STRING",
     FieldDescriptorProto.TYPE_BYTES: "PB_DATA_TYPE.BYTES",
     FieldDescriptorProto.TYPE_MESSAGE: "PB_DATA_TYPE.MESSAGE",
+    FieldDescriptorProto.TYPE_GROUP: "PB_DATA_TYPE.MESSAGE",
 }
+
+# PB_DATA_TYPE string → proto type int (reverse of _TYPE_TO_PB)
+# "first key wins" for duplicates like TYPE_MESSAGE(11)+TYPE_GROUP(10) → "PB_DATA_TYPE.MESSAGE"
+_PB_TYPE_TO_INT: dict[str, int] = {}
+for _k, _v in _TYPE_TO_PB.items():
+    if _v not in _PB_TYPE_TO_INT:
+        _PB_TYPE_TO_INT[_v] = _k
 
 # FieldDescriptorProto.TYPE_* → GDScript type string
 _TYPE_TO_GD: dict[int, str] = {
@@ -49,6 +57,29 @@ _TYPE_TO_GD: dict[int, str] = {
     FieldDescriptorProto.TYPE_SFIXED64: "int",
     FieldDescriptorProto.TYPE_STRING: "String",
     FieldDescriptorProto.TYPE_BYTES: "PackedByteArray",
+    FieldDescriptorProto.TYPE_GROUP: "",  # group fields use message class name
+}
+
+# FieldDescriptorProto.TYPE_* → proto3 default value literal in GDScript
+_TYPE_TO_DEFAULT_LITERAL: dict[int, str] = {
+    FieldDescriptorProto.TYPE_DOUBLE: "0.0",
+    FieldDescriptorProto.TYPE_FLOAT: "0.0",
+    FieldDescriptorProto.TYPE_INT32: "0",
+    FieldDescriptorProto.TYPE_SINT32: "0",
+    FieldDescriptorProto.TYPE_UINT32: "0",
+    FieldDescriptorProto.TYPE_INT64: "0",
+    FieldDescriptorProto.TYPE_SINT64: "0",
+    FieldDescriptorProto.TYPE_UINT64: "0",
+    FieldDescriptorProto.TYPE_BOOL: "false",
+    FieldDescriptorProto.TYPE_ENUM: "0",
+    FieldDescriptorProto.TYPE_FIXED32: "0",
+    FieldDescriptorProto.TYPE_SFIXED32: "0",
+    FieldDescriptorProto.TYPE_FIXED64: "0",
+    FieldDescriptorProto.TYPE_SFIXED64: "0",
+    FieldDescriptorProto.TYPE_STRING: '""',
+    FieldDescriptorProto.TYPE_BYTES: "[]",
+    FieldDescriptorProto.TYPE_MESSAGE: "null",
+    FieldDescriptorProto.TYPE_GROUP: "null",
 }
 
 
@@ -65,9 +96,26 @@ def _tab(text: str, n: int) -> str:
     return "\t" * n + text
 
 
-def _default_dict(proto_version: int) -> str:
-    return "DEFAULT_VALUES_2" if proto_version == 2 else "DEFAULT_VALUES_3"
+def _default_literal(proto_version: int, field_or_pb_type=None) -> str:
+    """Return the GDScript literal for the default value of a field type.
 
+    For proto2 all defaults are null. For proto3 they are the type's zero value.
+    Accepts a FieldDescriptorProto or a PB_DATA_TYPE string (e.g. "PB_DATA_TYPE.MAP").
+    """
+    if proto_version == 2:
+        return "null"
+    if field_or_pb_type is None:
+        return "0"
+    # String form: "PB_DATA_TYPE.MAP" etc.
+    if isinstance(field_or_pb_type, str):
+        if field_or_pb_type == "PB_DATA_TYPE.MAP":
+            return "[]"
+        type_int = _PB_TYPE_TO_INT.get(field_or_pb_type)
+        if type_int is not None:
+            return _TYPE_TO_DEFAULT_LITERAL.get(type_int, "0")
+        return "0"
+    # FieldDescriptorProto
+    return _TYPE_TO_DEFAULT_LITERAL.get(field_or_pb_type.type, "0")
 
 def _pb_type(field) -> str:
     return _TYPE_TO_PB.get(field.type, "PB_DATA_TYPE.INT32")
@@ -465,12 +513,12 @@ class Generator:
                     text += _tab(f"var {default_var}: Array = []\n", nesting)
             pb += f", {default_var}"
         else:
-            pb += f", {_default_dict(self.proto_version)}[{pb_type_str}]"
+            pb += f", {_default_literal(self.proto_version, pb_type_str)}"
 
         pb += ")\n"
 
         text += _tab(pb, nesting)
-        if is_map_entry:
+        if is_map:
             text += _tab(f"{fname}.is_map_field = true\n", nesting)
         text += _tab("service = PBServiceField.new()\n", nesting)
         text += _tab("service.field = " + fname + "\n", nesting)
@@ -557,7 +605,7 @@ class Generator:
             text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
             if in_oneof:
                 text += _tab(f"_{oneof_name}_case = {ONE_OF_CASE_DEFAULT_VALUE}\n", nesting)
-            text += _tab(f"{vn}.value = {_default_dict(self.proto_version)}[{_pb_type(field)}]\n", nesting)
+            text += _tab(f"{vn}.value = {_default_literal(self.proto_version, field)}\n", nesting)
             nesting -= 1
 
             text += _tab(f"func set_{field.name}(value{at}) -> void:\n", nesting)
@@ -624,7 +672,7 @@ class Generator:
             text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
             if in_oneof:
                 text += _tab(f"_{oneof_name}_case = {ONE_OF_CASE_DEFAULT_VALUE}\n", nesting)
-            text += _tab(f"{vn}.value = {_default_dict(self.proto_version)}[{_pb_type(field)}]\n", nesting)
+            text += _tab(f"{vn}.value = {_default_literal(self.proto_version, field)}\n", nesting)
             nesting -= 1
 
             text += _tab(f"func new_{field.name}() -> {type_name}:\n", nesting)
@@ -699,7 +747,8 @@ class Generator:
                     val_msg_type = self._resolve(nested.type_name)
 
         text += _tab(f"var {vn}: PBField\n", nesting)
-
+        text += _tab(f"var {vn}_cached: Dictionary = {{}}\n", nesting)
+        text += _tab(f"var {vn}_cache_valid: bool = false\n", nesting)
         if in_oneof:
             text += _tab(f"func has_{field.name}() -> bool:\n", nesting)
             nesting += 1
@@ -716,14 +765,20 @@ class Generator:
         suffix = _getter_suffix(field.name)
         text += _tab(f"func get_{field.name}{suffix}() -> Dictionary:\n", nesting)
         nesting += 1
-        text += _tab(f"return PBPacker.construct_map({vn}.as_array())\n", nesting)
+        text += _tab(f"if not {vn}_cache_valid:\n", nesting)
+        nesting += 1
+        text += _tab(f"{vn}_cached = PBPacker.construct_map({vn}.as_array())\n", nesting)
+        text += _tab(f"{vn}_cache_valid = true\n", nesting)
+        nesting -= 1
+        text += _tab(f"return {vn}_cached\n", nesting)
         nesting -= 1
 
         # clear
         text += _tab(f"func clear_{field.name}() -> void:\n", nesting)
         nesting += 1
+        text += _tab(f"{vn}_cache_valid = false\n", nesting)
         text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
-        text += _tab(f"{vn}.value = {_default_dict(self.proto_version)}[PB_DATA_TYPE.MAP]\n", nesting)
+        text += _tab(f"{vn}.clear_array()\n", nesting)
         if in_oneof:
             text += _tab(f"_{oneof_name}_case = {ONE_OF_CASE_DEFAULT_VALUE}\n", nesting)
         nesting -= 1
@@ -731,6 +786,7 @@ class Generator:
         # add_empty
         text += _tab(f"func add_empty_{field.name}() -> {class_path}:\n", nesting)
         nesting += 1
+        text += _tab(f"{vn}_cache_valid = false\n", nesting)
         if in_oneof:
             text += self._gen_oneof_set(field, siblings, oneof_name, nesting)
         text += _tab(f"var element: {class_path} = {class_path}.new()\n", nesting)
@@ -742,6 +798,7 @@ class Generator:
         if val_is_msg:
             text += _tab(f"func add_{field.name}(a_key: {key_gd}) -> {val_msg_type}:\n", nesting)
             nesting += 1
+            text += _tab(f"{vn}_cache_valid = false\n", nesting)
             if in_oneof:
                 text += self._gen_oneof_set(field, siblings, oneof_name, nesting)
             text += _tab(f"var idx: int = {vn}.find_map_index(a_key)\n", nesting)
@@ -756,9 +813,11 @@ class Generator:
             text += _tab(f"{vn}.append_array(element)\n", nesting)
             nesting -= 1
             text += _tab("return element.new_value()\n", nesting)
+            nesting -= 1
         else:
             text += _tab(f"func add_{field.name}(a_key: {key_gd}, a_value: {val_gd}) -> void:\n", nesting)
             nesting += 1
+            text += _tab(f"{vn}_cache_valid = false\n", nesting)
             if in_oneof:
                 text += self._gen_oneof_set(field, siblings, oneof_name, nesting)
             text += _tab(f"var idx: int = {vn}.find_map_index(a_key)\n", nesting)
@@ -828,7 +887,7 @@ class Generator:
                 text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.FILLED\n", nesting)
                 text += _tab(f"_{oneof_name}_case = {field.number}\n", nesting)
             else:
-                text += _tab(f"__{field.name}.value = {_default_dict(self.proto_version)}[{_pb_type(field)}]\n", nesting)
+                text += _tab(f"__{field.name}.value = {_default_literal(self.proto_version, field)}\n", nesting)
                 text += _tab(f"data[{field.number}].state = PB_SERVICE_STATE.UNFILLED\n", nesting)
         return text
 

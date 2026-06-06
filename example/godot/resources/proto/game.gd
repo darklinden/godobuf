@@ -69,47 +69,6 @@ enum PB_DATA_TYPE {
 	MAP = 17
 }
 
-const DEFAULT_VALUES_2: Dictionary = {
-	PB_DATA_TYPE.INT32: null,
-	PB_DATA_TYPE.SINT32: null,
-	PB_DATA_TYPE.UINT32: null,
-	PB_DATA_TYPE.INT64: null,
-	PB_DATA_TYPE.SINT64: null,
-	PB_DATA_TYPE.UINT64: null,
-	PB_DATA_TYPE.BOOL: null,
-	PB_DATA_TYPE.ENUM: null,
-	PB_DATA_TYPE.FIXED32: null,
-	PB_DATA_TYPE.SFIXED32: null,
-	PB_DATA_TYPE.FLOAT: null,
-	PB_DATA_TYPE.FIXED64: null,
-	PB_DATA_TYPE.SFIXED64: null,
-	PB_DATA_TYPE.DOUBLE: null,
-	PB_DATA_TYPE.STRING: null,
-	PB_DATA_TYPE.BYTES: null,
-	PB_DATA_TYPE.MESSAGE: null,
-	PB_DATA_TYPE.MAP: null
-}
-
-const DEFAULT_VALUES_3: Dictionary = {
-	PB_DATA_TYPE.INT32: 0,
-	PB_DATA_TYPE.SINT32: 0,
-	PB_DATA_TYPE.UINT32: 0,
-	PB_DATA_TYPE.INT64: 0,
-	PB_DATA_TYPE.SINT64: 0,
-	PB_DATA_TYPE.UINT64: 0,
-	PB_DATA_TYPE.BOOL: false,
-	PB_DATA_TYPE.ENUM: 0,
-	PB_DATA_TYPE.FIXED32: 0,
-	PB_DATA_TYPE.SFIXED32: 0,
-	PB_DATA_TYPE.FLOAT: 0.0,
-	PB_DATA_TYPE.FIXED64: 0,
-	PB_DATA_TYPE.SFIXED64: 0,
-	PB_DATA_TYPE.DOUBLE: 0.0,
-	PB_DATA_TYPE.STRING: "",
-	PB_DATA_TYPE.BYTES: [],
-	PB_DATA_TYPE.MESSAGE: null,
-	PB_DATA_TYPE.MAP: []
-}
 
 enum PB_TYPE {
 	VARINT = 0,
@@ -144,6 +103,13 @@ class PBField:
 		tag = a_tag
 		option_packed = packed
 		value = a_value
+		if typeof(a_value) == TYPE_ARRAY:
+			option_default = (a_value as Array).duplicate(false)
+		elif typeof(a_value) == TYPE_DICTIONARY:
+			option_default = (a_value as Dictionary).duplicate(false)
+		else:
+			option_default = a_value
+		wire_type = _compute_wire_type(a_type)
 
 	var name : String
 	var type : int
@@ -151,29 +117,54 @@ class PBField:
 	var tag : int
 	var option_packed : bool
 	var value: Variant
+	var option_default: Variant
+	var wire_type: int
 	var is_map_field : bool = false
-	var option_default : bool = false
+	var _map_index: Dictionary = {}
+
+	static func _compute_wire_type(data_type: int) -> int:
+		if data_type == PB_DATA_TYPE.INT32 || data_type == PB_DATA_TYPE.SINT32 || data_type == PB_DATA_TYPE.UINT32 || data_type == PB_DATA_TYPE.INT64 || data_type == PB_DATA_TYPE.SINT64 || data_type == PB_DATA_TYPE.UINT64 || data_type == PB_DATA_TYPE.BOOL || data_type == PB_DATA_TYPE.ENUM:
+			return PB_TYPE.VARINT
+		elif data_type == PB_DATA_TYPE.FIXED32 || data_type == PB_DATA_TYPE.SFIXED32 || data_type == PB_DATA_TYPE.FLOAT:
+			return PB_TYPE.FIX32
+		elif data_type == PB_DATA_TYPE.FIXED64 || data_type == PB_DATA_TYPE.SFIXED64 || data_type == PB_DATA_TYPE.DOUBLE:
+			return PB_TYPE.FIX64
+		return PB_TYPE.LENGTHDEL
 
 	func clear_array() -> void:
 		(value as Array).clear()
+		_map_index.clear()
 
 	func append_array(v: Variant) -> void:
-		(value as Array).append(v)
+		var arr: Array = value as Array
+		arr.append(v)
+		if is_map_field:
+			_map_index[v.get_key()] = arr.size() - 1
 
 	func as_array() -> Array:
 		return value as Array
 
 	func find_map_index(key: Variant) -> int:
-		var arr: Array = value as Array
-		for i: int in range(arr.size()):
-			if arr[i].get_key() == key:
-				return i
+		if is_map_field:
+			return _map_index.get(key, -1)
 		return -1
 
 	func set_map_element(index: int, element: Variant) -> void:
-		(value as Array)[index] = element
+		var arr: Array = value as Array
+		if is_map_field:
+			var old: Variant = arr[index]
+			_map_index.erase(old.get_key())
+		arr[index] = element
+		if is_map_field:
+			_map_index[element.get_key()] = index
 
-
+	func rebuild_map_index() -> void:
+		if not is_map_field:
+			return
+		_map_index.clear()
+		var arr: Array = value as Array
+		for i: int in range(arr.size()):
+			_map_index[arr[i].get_key()] = i
 class PBTypeTag:
 	extends RefCounted
 	var ok : bool = false
@@ -290,20 +281,9 @@ class PBPacker:
 		result.append_array(bytes)
 		return result
 
-	static func pb_type_from_data_type(data_type : int) -> int:
-		if data_type == PB_DATA_TYPE.INT32 || data_type == PB_DATA_TYPE.SINT32 || data_type == PB_DATA_TYPE.UINT32 || data_type == PB_DATA_TYPE.INT64 || data_type == PB_DATA_TYPE.SINT64 || data_type == PB_DATA_TYPE.UINT64 || data_type == PB_DATA_TYPE.BOOL || data_type == PB_DATA_TYPE.ENUM:
-			return PB_TYPE.VARINT
-		elif data_type == PB_DATA_TYPE.FIXED32 || data_type == PB_DATA_TYPE.SFIXED32 || data_type == PB_DATA_TYPE.FLOAT:
-			return PB_TYPE.FIX32
-		elif data_type == PB_DATA_TYPE.FIXED64 || data_type == PB_DATA_TYPE.SFIXED64 || data_type == PB_DATA_TYPE.DOUBLE:
-			return PB_TYPE.FIX64
-		elif data_type == PB_DATA_TYPE.STRING || data_type == PB_DATA_TYPE.BYTES || data_type == PB_DATA_TYPE.MESSAGE || data_type == PB_DATA_TYPE.MAP:
-			return PB_TYPE.LENGTHDEL
-		else:
-			return PB_TYPE.UNDEFINED
 
 	static func pack_field(field : PBField) -> PackedByteArray:
-		var type : int = pb_type_from_data_type(field.type)
+		var type : int = field.wire_type
 		var type_copy : int = type
 		if field.rule == PB_RULE.REPEATED && field.option_packed:
 			type = PB_TYPE.LENGTHDEL
@@ -531,6 +511,10 @@ class PBPacker:
 					return PB_ERR.LENGTHDEL_SIZE_NOT_FOUND
 		return PB_ERR.UNDEFINED_STATE
 
+	static func _rebuild_map_indexes(data: Dictionary) -> void:
+		for svc: Variant in data.values():
+			svc.field.rebuild_map_index()
+
 	static func unpack_message(data: Dictionary, bytes : PackedByteArray, offset : int, limit : int) -> int:
 		while true:
 			var tt : PBTypeTag = unpack_type_tag(bytes, offset)
@@ -538,13 +522,14 @@ class PBPacker:
 				offset += tt.offset
 				if data.has(tt.tag):
 					var service: PBServiceField = data[tt.tag]
-					var type : int = pb_type_from_data_type(service.field.type)
+					var type : int = service.field.wire_type
 					if type == tt.type || (tt.type == PB_TYPE.LENGTHDEL && service.field.rule == PB_RULE.REPEATED && service.field.option_packed):
 						var res : int = unpack_field(bytes, offset, service.field, type, service.func_ref)
 						if res > 0:
 							service.state = PB_SERVICE_STATE.FILLED
 							offset = res
 							if offset == limit:
+								_rebuild_map_indexes(data)
 								return offset
 							elif offset > limit:
 								return PB_ERR.PACKAGE_SIZE_MISMATCH
@@ -557,6 +542,7 @@ class PBPacker:
 					if res > 0:
 						offset = res
 						if offset == limit:
+							_rebuild_map_indexes(data)
 							return offset
 						elif offset > limit:
 							return PB_ERR.PACKAGE_SIZE_MISMATCH
@@ -565,15 +551,11 @@ class PBPacker:
 					else:
 						break
 			else:
+				_rebuild_map_indexes(data)
 				return offset
 		return PB_ERR.UNDEFINED_STATE
 
 	static func pack_message(data: Dictionary) -> PackedByteArray:
-		var DEFAULT_VALUES: Dictionary
-		if PROTO_VERSION == 2:
-			DEFAULT_VALUES = DEFAULT_VALUES_2
-		elif PROTO_VERSION == 3:
-			DEFAULT_VALUES = DEFAULT_VALUES_3
 		var result : PackedByteArray = PackedByteArray()
 		var keys : Array = data.keys()
 		keys.sort()
@@ -581,8 +563,7 @@ class PBPacker:
 			if data[i].field.value != null:
 				if data[i].state == PB_SERVICE_STATE.UNFILLED \
 				&& !data[i].field.is_map_field \
-				&& typeof(data[i].field.value) == typeof(DEFAULT_VALUES[data[i].field.type]) \
-				&& data[i].field.value == DEFAULT_VALUES[data[i].field.type]:
+				&& data[i].field.value == data[i].field.option_default:
 					continue
 				elif data[i].field.rule == PB_RULE.REPEATED && data[i].field.value.size() == 0:
 					continue
@@ -678,11 +659,6 @@ class PBPacker:
 		return result
 
 	static func message_to_string(data: Dictionary, nesting : int = 0) -> String:
-		var DEFAULT_VALUES: Dictionary
-		if PROTO_VERSION == 2:
-			DEFAULT_VALUES = DEFAULT_VALUES_2
-		elif PROTO_VERSION == 3:
-			DEFAULT_VALUES = DEFAULT_VALUES_3
 		var result : String = ""
 		var keys : Array = data.keys()
 		keys.sort()
@@ -690,8 +666,7 @@ class PBPacker:
 			if data[i].field.value != null:
 				if data[i].state == PB_SERVICE_STATE.UNFILLED \
 				&& !data[i].field.is_map_field \
-				&& typeof(data[i].field.value) == typeof(DEFAULT_VALUES[data[i].field.type]) \
-				&& data[i].field.value == DEFAULT_VALUES[data[i].field.type]:
+				&& data[i].field.value == data[i].field.option_default:
 					continue
 				elif data[i].field.rule == PB_RULE.REPEATED && data[i].field.value.size() == 0:
 					continue
@@ -714,7 +689,7 @@ class Game:
 	func _init() -> void:
 		var service: PBServiceField
 		
-		__id = PBField.new("id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		__id = PBField.new("id", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, "")
 		service = PBServiceField.new()
 		service.field = __id
 		data[__id.tag] = service
@@ -726,33 +701,33 @@ class Game:
 		service.func_ref = Callable(self, "add_players")
 		data[__players.tag] = service
 		
-		__max_players = PBField.new("max_players", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.INT32])
+		__max_players = PBField.new("max_players", PB_DATA_TYPE.INT32, PB_RULE.OPTIONAL, 3, true, 0)
 		service = PBServiceField.new()
 		service.field = __max_players
 		data[__max_players.tag] = service
 		
-		__started = PBField.new("started", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 4, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL])
+		__started = PBField.new("started", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 4, true, false)
 		service = PBServiceField.new()
 		service.field = __started
 		data[__started.tag] = service
 		
-		__state = PBField.new("state", PB_DATA_TYPE.ENUM, PB_RULE.OPTIONAL, 5, true, DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM])
+		__state = PBField.new("state", PB_DATA_TYPE.ENUM, PB_RULE.OPTIONAL, 5, true, 0)
 		service = PBServiceField.new()
 		service.field = __state
 		data[__state.tag] = service
 		
-		__leader = PBField.new("leader", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 6, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		__leader = PBField.new("leader", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 6, true, null)
 		service = PBServiceField.new()
 		service.field = __leader
 		service.func_ref = Callable(self, "new_leader")
 		data[__leader.tag] = service
 		
-		__reward_text = PBField.new("reward_text", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 7, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
+		__reward_text = PBField.new("reward_text", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 7, true, "")
 		service = PBServiceField.new()
 		service.field = __reward_text
 		data[__reward_text.tag] = service
 		
-		__reward_booster = PBField.new("reward_booster", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 8, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		__reward_booster = PBField.new("reward_booster", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 8, true, null)
 		service = PBServiceField.new()
 		service.field = __reward_booster
 		service.func_ref = Callable(self, "new_reward_booster")
@@ -760,12 +735,13 @@ class Game:
 		
 		var __team_default: Array = []
 		__team = PBField.new("team", PB_DATA_TYPE.MAP, PB_RULE.REPEATED, 9, true, __team_default)
+		__team.is_map_field = true
 		service = PBServiceField.new()
 		service.field = __team
 		service.func_ref = Callable(self, "add_empty_team")
 		data[__team.tag] = service
 		
-		__config = PBField.new("config", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 10, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
+		__config = PBField.new("config", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 10, true, null)
 		service = PBServiceField.new()
 		service.field = __config
 		service.func_ref = Callable(self, "new_config")
@@ -800,7 +776,7 @@ class Game:
 		return __id.value
 	func clear_id() -> void:
 		data[1].state = PB_SERVICE_STATE.UNFILLED
-		__id.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+		__id.value = ""
 	func set_id(value : String) -> void:
 		data[1].state = PB_SERVICE_STATE.FILLED
 		__id.value = value
@@ -823,7 +799,7 @@ class Game:
 		return __max_players.value
 	func clear_max_players() -> void:
 		data[3].state = PB_SERVICE_STATE.UNFILLED
-		__max_players.value = DEFAULT_VALUES_3[PB_DATA_TYPE.INT32]
+		__max_players.value = 0
 	func set_max_players(value : int) -> void:
 		data[3].state = PB_SERVICE_STATE.FILLED
 		__max_players.value = value
@@ -835,7 +811,7 @@ class Game:
 		return __started.value
 	func clear_started() -> void:
 		data[4].state = PB_SERVICE_STATE.UNFILLED
-		__started.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
+		__started.value = false
 	func set_started(value : bool) -> void:
 		data[4].state = PB_SERVICE_STATE.FILLED
 		__started.value = value
@@ -847,7 +823,7 @@ class Game:
 		return __state.value
 	func clear_state() -> void:
 		data[5].state = PB_SERVICE_STATE.UNFILLED
-		__state.value = DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM]
+		__state.value = 0
 	func set_state(value : int) -> void:
 		data[5].state = PB_SERVICE_STATE.FILLED
 		__state.value = value
@@ -860,7 +836,7 @@ class Game:
 	func clear_leader() -> void:
 		data[6].state = PB_SERVICE_STATE.UNFILLED
 		__leader_case = 0
-		__leader.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+		__leader.value = null
 	func new_leader() -> Player:
 		data[6].state = PB_SERVICE_STATE.FILLED
 		__leader_case = 6
@@ -875,11 +851,11 @@ class Game:
 	func clear_reward_text() -> void:
 		data[7].state = PB_SERVICE_STATE.UNFILLED
 		_reward_case = 0
-		__reward_text.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+		__reward_text.value = ""
 	func set_reward_text(value : String) -> void:
 		data[7].state = PB_SERVICE_STATE.FILLED
 		_reward_case = 7
-		__reward_booster.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+		__reward_booster.value = null
 		data[8].state = PB_SERVICE_STATE.UNFILLED
 		__reward_text.value = value
 	
@@ -891,9 +867,9 @@ class Game:
 	func clear_reward_booster() -> void:
 		data[8].state = PB_SERVICE_STATE.UNFILLED
 		_reward_case = 0
-		__reward_booster.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+		__reward_booster.value = null
 	func new_reward_booster() -> Player:
-		__reward_text.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+		__reward_text.value = ""
 		data[7].state = PB_SERVICE_STATE.UNFILLED
 		data[8].state = PB_SERVICE_STATE.FILLED
 		_reward_case = 8
@@ -901,18 +877,26 @@ class Game:
 		return __reward_booster.value
 	
 	var __team: PBField
+	var __team_cached: Dictionary = {}
+	var __team_cache_valid: bool = false
 	func get_raw_team() -> Variant:
 		return __team.value
 	func get_team() -> Dictionary:
-		return PBPacker.construct_map(__team.as_array())
+		if not __team_cache_valid:
+			__team_cached = PBPacker.construct_map(__team.as_array())
+			__team_cache_valid = true
+		return __team_cached
 	func clear_team() -> void:
+		__team_cache_valid = false
 		data[9].state = PB_SERVICE_STATE.UNFILLED
-		__team.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MAP]
+		__team.clear_array()
 	func add_empty_team() -> Game.map_type_team:
+		__team_cache_valid = false
 		var element: Game.map_type_team = Game.map_type_team.new()
 		__team.append_array(element)
 		return element
 	func add_team(a_key: String) -> Player:
+		__team_cache_valid = false
 		var idx: int = __team.find_map_index(a_key)
 		var element: Game.map_type_team = Game.map_type_team.new()
 		element.set_key(a_key)
@@ -931,7 +915,7 @@ class Game:
 		return __config.value
 	func clear_config() -> void:
 		data[10].state = PB_SERVICE_STATE.UNFILLED
-		__config.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+		__config.value = null
 	func new_config() -> Game.Config:
 		__config.value = Game.Config.new()
 		return __config.value
@@ -963,14 +947,12 @@ class Game:
 		func _init() -> void:
 			var service: PBServiceField
 			
-			__key = PBField.new("key", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.STRING])
-			__key.is_map_field = true
+			__key = PBField.new("key", PB_DATA_TYPE.STRING, PB_RULE.OPTIONAL, 1, true, "")
 			service = PBServiceField.new()
 			service.field = __key
 			data[__key.tag] = service
 			
-			__value = PBField.new("value", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE])
-			__value.is_map_field = true
+			__value = PBField.new("value", PB_DATA_TYPE.MESSAGE, PB_RULE.OPTIONAL, 2, true, null)
 			service = PBServiceField.new()
 			service.field = __value
 			service.func_ref = Callable(self, "new_value")
@@ -985,7 +967,7 @@ class Game:
 			return __key.value
 		func clear_key() -> void:
 			data[1].state = PB_SERVICE_STATE.UNFILLED
-			__key.value = DEFAULT_VALUES_3[PB_DATA_TYPE.STRING]
+			__key.value = ""
 		func set_key(value : String) -> void:
 			data[1].state = PB_SERVICE_STATE.FILLED
 			__key.value = value
@@ -999,7 +981,7 @@ class Game:
 			return __value.value
 		func clear_value() -> void:
 			data[2].state = PB_SERVICE_STATE.UNFILLED
-			__value.value = DEFAULT_VALUES_3[PB_DATA_TYPE.MESSAGE]
+			__value.value = null
 		func new_value() -> Player:
 			__value.value = Player.new()
 			return __value.value
@@ -1030,17 +1012,17 @@ class Game:
 		func _init() -> void:
 			var service: PBServiceField
 			
-			__friendly_fire = PBField.new("friendly_fire", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 1, true, DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL])
+			__friendly_fire = PBField.new("friendly_fire", PB_DATA_TYPE.BOOL, PB_RULE.OPTIONAL, 1, true, false)
 			service = PBServiceField.new()
 			service.field = __friendly_fire
 			data[__friendly_fire.tag] = service
 			
-			__time_limit = PBField.new("time_limit", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 2, true, DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT])
+			__time_limit = PBField.new("time_limit", PB_DATA_TYPE.FLOAT, PB_RULE.OPTIONAL, 2, true, 0.0)
 			service = PBServiceField.new()
 			service.field = __time_limit
 			data[__time_limit.tag] = service
 			
-			__mode = PBField.new("mode", PB_DATA_TYPE.ENUM, PB_RULE.OPTIONAL, 3, true, DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM])
+			__mode = PBField.new("mode", PB_DATA_TYPE.ENUM, PB_RULE.OPTIONAL, 3, true, 0)
 			service = PBServiceField.new()
 			service.field = __mode
 			data[__mode.tag] = service
@@ -1054,7 +1036,7 @@ class Game:
 			return __friendly_fire.value
 		func clear_friendly_fire() -> void:
 			data[1].state = PB_SERVICE_STATE.UNFILLED
-			__friendly_fire.value = DEFAULT_VALUES_3[PB_DATA_TYPE.BOOL]
+			__friendly_fire.value = false
 		func set_friendly_fire(value : bool) -> void:
 			data[1].state = PB_SERVICE_STATE.FILLED
 			__friendly_fire.value = value
@@ -1066,7 +1048,7 @@ class Game:
 			return __time_limit.value
 		func clear_time_limit() -> void:
 			data[2].state = PB_SERVICE_STATE.UNFILLED
-			__time_limit.value = DEFAULT_VALUES_3[PB_DATA_TYPE.FLOAT]
+			__time_limit.value = 0.0
 		func set_time_limit(value : float) -> void:
 			data[2].state = PB_SERVICE_STATE.FILLED
 			__time_limit.value = value
@@ -1078,7 +1060,7 @@ class Game:
 			return __mode.value
 		func clear_mode() -> void:
 			data[3].state = PB_SERVICE_STATE.UNFILLED
-			__mode.value = DEFAULT_VALUES_3[PB_DATA_TYPE.ENUM]
+			__mode.value = 0
 		func set_mode(value : int) -> void:
 			data[3].state = PB_SERVICE_STATE.FILLED
 			__mode.value = value

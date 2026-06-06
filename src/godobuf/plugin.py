@@ -23,12 +23,8 @@ def _load_core_text() -> str:
     import os
     # Try relative to this file first
     here = os.path.dirname(os.path.abspath(__file__))
-    # Look in package dir
+    # Look in package dir (always takes precedence)
     candidate = os.path.join(here, "godobuf_core.gd")
-    if os.path.isfile(candidate):
-        return _read_file(candidate)
-    # Look relative to cwd
-    candidate = "addons/godobuf/godobuf_core.gd"
     if os.path.isfile(candidate):
         return _read_file(candidate)
     raise FileNotFoundError(
